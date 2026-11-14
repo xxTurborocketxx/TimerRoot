@@ -1,6 +1,6 @@
 # IC Timer LPE —— CVE-2026-98260
 
-A vivo/iQOO 6.1 privilege-escalation tool for the POSIX CPU timer UAF
+A vivo/iQOO/Motorola 6.1 privilege-escalation tool for the POSIX CPU timer UAF
 (CVE-2026-98260): from the shell domain to uid 0, optionally handing root
 over to a KernelSU-family manager (late-load of the manager's bundled
 `ksud` / kernel module).
@@ -8,6 +8,10 @@ over to a KernelSU-family manager (late-load of the manager's bundled
 > For educational use only; delete within 24 hours after downloading.
 > No responsibility is accepted for any problems with your device.
 > This software is free and open source, by Coolapk **@散花神木 (Sanhua Shenmu)**.
+
+> **Fork note:** this repository adds **Motorola Edge 50 Ultra** support on top of
+> the upstream vivo/iQOO tool — see
+> Edge 50 Ultra port.
 
 ## What 0.12 did
 
@@ -88,6 +92,7 @@ under **GPL-3.0**; see `LICENSE` and `NOTICE`.
 | PD2339 / V2339 | 16.2.13.1 |
 | PD2309 / V2309 | 16.2.15.0 |
 | PD2445 / V2445 | 16.1.16.0 |
+| Motorola Edge 50 Ultra (`ctwo`) | GKI `6.1.157-android14-11`, build `36e2a-a4560` (`CTWOMOTO` profile) |
 
 For models in this list, both the privilege escalation and the KSU handoff
 work from the built-in data alone; for newer builds not in the list, use the
@@ -96,6 +101,32 @@ app's "parse offsets" to generate `/data/local/tmp/ic-syms.txt` from
 
 Cross-check script for the built-in tables against the old tool's parse
 results (`dist/ic-syms-*.txt`): `core/tools/verify_tables.py`.
+
+## Edge 50 Ultra port (this fork)
+
+This fork extends the tool to the **Motorola Edge 50 Ultra** (codename
+`ctwo`): Android 17 userspace on a stock, **bootloader-locked** GKI kernel
+`6.1.157-android14-11`. What changed:
+
+- **`CTWOMOTO` device profile** in `core/profiles.h`
+  (`-DIC_PROFILE_CTWOMOTO`): static addresses, cred/slab geometry and the
+  rmtfs ioctl call-site data for the Motorola GKI build;
+- **Offsets via parse-offsets**: the per-build symbol table is generated from
+  `boot.img` into `/data/local/tmp/ic-syms.txt`, so a firmware update only
+  needs a re-parse, not a core rebuild (verified build: `36e2a-a4560`);
+- **Direct late-load payload**: the payload drives the KernelSU late-load
+  itself (`ksud late-load --kmi android14-6.1 --allow-shell`) and clears
+  stale `/data/adb/ksud` state first, so the manager's Superuser tab no
+  longer hangs after a run (KernelSU-Next #1716 workaround);
+- **Proof-marker success detection**: a run counts as successful once the
+  root-proof markers appear (`uid=0(root)`, `LPE-PROOF`, module resident);
+  the manager autostart no longer mislabels a successful run as Failed;
+- **English UI**, launcher name **TimerRoot**.
+
+Verified on device: shell → uid 0 proof, then KernelSU-Next manager
+**"Working [Jailbreak mode]"** via late-loaded GKI LKM — no bootloader
+unlock required. One run per boot; reboot before rerunning (the core's
+zombie guard refuses a second run).
 
 ## Usage
 
@@ -129,13 +160,16 @@ cross-checks them.
   `uid=0 euid=0` + payload execution;
 - Real devices: PD2329 / PD2307 / PD2425 shell-domain uid 0; PD2425
   `late-load rc=0`, kernelsu module resident.
+- Motorola Edge 50 Ultra (`ctwo`): uid=0 proof + KernelSU-Next late-load,
+  `kernelsu` module resident (bootloader locked).
 
 ## Known limitations
 
 - On-device filesystem layout and the `struct cred` offsets of different
   builds are derived from known builds; on untested builds a failure shows
   up as `fork/exec errno=12` (ENOMEM) — it will not panic;
-- This branch only fits devices with 6.1.145 kernels.
+- Upstream profiles fit devices with 6.1.145 kernels; this fork adds the
+  Motorola Edge 50 Ultra's 6.1.157 GKI build (`CTWOMOTO` profile).
 
 ## Disclaimer
 
