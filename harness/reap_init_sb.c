@@ -2492,7 +2492,7 @@ static void shellboot_prewarm_timers(unsigned long n, unsigned long freem,
 }
 
 /*
- * SLUB 编排 oracle: /sys/kernel/slab/posix_timers_cache/{objects,slabs,
+ * SLUB grooming oracle: /sys/kernel/slab/posix_timers_cache/{objects,slabs,
  * partial,cpu_slabs}.  The discard condition for the order-1 posix slab is
  * "!inuse && node->nr_partial >= min_partial(5)", and the per-CPU partial
  * list unfreezes at cpu_partial_slabs=4.  Reading /proc/slabinfo only gives

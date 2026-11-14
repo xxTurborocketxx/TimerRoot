@@ -63,31 +63,31 @@ object OtaUrlExtractor {
         if (remote) {
             val reader = HttpRangeReader()
             val fileLength = reader.fileLength(source)
-                ?: throw IOException("无法连接链接或读取文件大小")
-            if (fileLength <= 0) throw IOException("远程文件大小无效")
-            onLog("[ota] 远程文件大小: ${formatSize(fileLength)}")
+                ?: throw IOException("Cannot connect to the URL or read the file size")
+            if (fileLength <= 0) throw IOException("Invalid remote file size")
+            onLog("[ota] remote file size: ${formatSize(fileLength)}")
 
             val payloadStart = locateRemotePayload(reader, source, fileLength, onLog)
             val header = reader.read(source, payloadStart, HEADER_SIZE)
-                ?: throw IOException("读取 payload.bin 头失败")
+                ?: throw IOException("Failed to read payload.bin header")
             val (manifestSize, signatureSize) = parseHeader(header)
-                ?: throw IOException("payload.bin 头无效（缺少 CrAU 标识）")
-            if (manifestSize > Int.MAX_VALUE) throw IOException("manifest 过大")
+                ?: throw IOException("Invalid payload.bin header (missing CrAU magic)")
+            if (manifestSize > Int.MAX_VALUE) throw IOException("Manifest too large")
             val manifest = reader.read(
                 source, payloadStart + HEADER_SIZE, manifestSize.toInt()
-            ) ?: throw IOException("读取 payload manifest 失败")
+            ) ?: throw IOException("Failed to read payload manifest")
             val dataBase = payloadStart + HEADER_SIZE + manifestSize + signatureSize
 
             val ops = partitionOps(manifest, "boot")
-                ?: throw IOException("全量包里没有 boot 分区")
+                ?: throw IOException("No boot partition in the OTA package")
             val blockSize = blockSize(manifest)
-            onLog("[ota] boot 分区: ${ops.size} 个操作，block=$blockSize")
+            onLog("[ota] boot partition: ${ops.size} operations, block=$blockSize")
 
             extractTo(
                 out, ops, blockSize, onLog
             ) { offset, len ->
                 reader.read(source, dataBase + offset, len.toInt())
-                    ?: throw IOException("读取 op 数据失败 @ ${dataBase + offset}")
+                    ?: throw IOException("Failed to read op data @ ${dataBase + offset}")
             }
         } else {
             RandomAccessFile(source, "r").use { raf ->
@@ -97,15 +97,15 @@ object OtaUrlExtractor {
                 val header = ByteArray(HEADER_SIZE)
                 raf.readFully(header)
                 val (manifestSize, signatureSize) = parseHeader(header)
-                    ?: throw IOException("payload.bin 头无效（缺少 CrAU 标识）")
-                if (manifestSize > Int.MAX_VALUE) throw IOException("manifest 过大")
+                    ?: throw IOException("Invalid payload.bin header (missing CrAU magic)")
+                if (manifestSize > Int.MAX_VALUE) throw IOException("Manifest too large")
                 val manifest = ByteArray(manifestSize.toInt())
                 raf.readFully(manifest)
                 val dataBase = payloadStart + HEADER_SIZE + manifestSize + signatureSize
                 val ops = partitionOps(manifest, "boot")
-                    ?: throw IOException("全量包里没有 boot 分区")
+                    ?: throw IOException("No boot partition in the OTA package")
                 val blockSize = blockSize(manifest)
-                onLog("[ota] boot 分区: ${ops.size} 个操作，block=$blockSize")
+                onLog("[ota] boot partition: ${ops.size} operations, block=$blockSize")
                 extractTo(out, ops, blockSize, onLog) { offset, len ->
                     val buf = ByteArray(len.toInt())
                     raf.seek(dataBase + offset)
@@ -114,7 +114,7 @@ object OtaUrlExtractor {
                 }
             }
         }
-        onLog("[ota] boot.img 已提取: ${out.name} (${formatSize(out.length())})")
+        onLog("[ota] boot.img extracted: ${out.name} (${formatSize(out.length())})")
         out
     }
 
@@ -127,7 +127,7 @@ object OtaUrlExtractor {
     ) {
         val totalSize = ops.flatMap { it.destExtents }
             .maxOfOrNull { (it.startBlock + it.numBlocks) * blockSize }
-            ?: throw IOException("boot 分区长度为 0")
+            ?: throw IOException("boot partition length is 0")
         RandomAccessFile(out, "rw").use { raf ->
             raf.setLength(totalSize)
             ops.forEachIndexed { idx, op ->
@@ -135,7 +135,7 @@ object OtaUrlExtractor {
                     OP_ZERO, OP_DISCARD -> { /* already zero */ }
                     OP_REPLACE, OP_REPLACE_BZ, OP_REPLACE_XZ, OP_REPLACE_ZSTD -> {
                         if (op.dataLength <= 0 || op.dataLength > Int.MAX_VALUE) {
-                            throw IOException("op $idx 数据长度异常: ${op.dataLength}")
+                            throw IOException("op $idx abnormal data length: ${op.dataLength}")
                         }
                         val compressed = read(op.dataOffset, op.dataLength)
                         val expected = op.destExtents.sumOf { it.numBlocks } * blockSize
@@ -167,7 +167,7 @@ object OtaUrlExtractor {
                         }
                         if (expected > 0 && raw.size.toLong() < expected) {
                             throw IOException(
-                                "op $idx 解压不完整（${raw.size}/$expected bytes）"
+                                "op $idx decompression incomplete (${raw.size}/$expected bytes)"
                             )
                         }
                         var pos = 0
@@ -180,7 +180,7 @@ object OtaUrlExtractor {
                         }
                         onLog("[ota] op $idx type=${op.type} ${raw.size} bytes")
                     }
-                    else -> throw IOException("不支持的 payload 操作类型 ${op.type}")
+                    else -> throw IOException("Unsupported payload operation type ${op.type}")
                 }
             }
         }
@@ -312,29 +312,29 @@ object OtaUrlExtractor {
     ): Long {
         val head = reader.read(url, 0, 4)
         if (head != null && head.size >= 4 && head.contentEquals(PAYLOAD_MAGIC)) {
-            onLog("[ota] 检测到直接 payload.bin")
+            onLog("[ota] direct payload.bin detected")
             return 0L
         }
         val tailSize = min(fileLength, END_BYTES_SIZE.toLong()).toInt()
         val tail = reader.read(url, fileLength - tailSize, tailSize)
-            ?: throw IOException("读取 zip 尾部失败")
+            ?: throw IOException("Failed to read zip tail")
         val (cdOff, cdSize) = locateCentralDirectory(tail, fileLength)
         if (cdOff < 0 || cdSize <= 0 || cdOff + cdSize > fileLength) {
-            throw IOException("全量包里找不到 zip 中央目录")
+            throw IOException("ZIP central directory not found in the OTA package")
         }
         val cd = reader.read(url, cdOff, cdSize.toInt())
-            ?: throw IOException("读取中央目录失败")
+            ?: throw IOException("Failed to read central directory")
         val entry = locateEntry(cd, "payload.bin")
-            ?: throw IOException("全量包里没有 payload.bin")
-        if (entry.method != 0) throw IOException("payload.bin 必须是未压缩存储")
+            ?: throw IOException("No payload.bin in the OTA package")
+        if (entry.method != 0) throw IOException("payload.bin must be stored uncompressed")
         val headerOffset = entry.localHeaderOffset
         val probe = reader.read(
             url, headerOffset, min(fileLength - headerOffset, LOCAL_HEADER_PROBE_SIZE.toLong()).toInt()
-        ) ?: throw IOException("读取本地文件头失败")
+        ) ?: throw IOException("Failed to read local file header")
         val inner = locateLocalFileOffset(probe)
-        if (inner < 0) throw IOException("解析本地文件头失败")
+        if (inner < 0) throw IOException("Failed to parse local file header")
         val start = headerOffset + inner
-        onLog("[ota] payload.bin 偏移: $start (${formatSize(entry.uncompressedSize)})")
+        onLog("[ota] payload.bin offset: $start (${formatSize(entry.uncompressedSize)})")
         return start
     }
 
@@ -345,7 +345,7 @@ object OtaUrlExtractor {
         raf.seek(0)
         raf.readFully(head)
         if (head.contentEquals(PAYLOAD_MAGIC)) {
-            onLog("[ota] 检测到直接 payload.bin")
+            onLog("[ota] direct payload.bin detected")
             return 0L
         }
         val tailSize = min(fileLength, END_BYTES_SIZE.toLong()).toInt()
@@ -354,23 +354,23 @@ object OtaUrlExtractor {
         raf.readFully(tail)
         val (cdOff, cdSize) = locateCentralDirectory(tail, fileLength)
         if (cdOff < 0 || cdSize <= 0 || cdOff + cdSize > fileLength) {
-            throw IOException("全量包里找不到 zip 中央目录")
+            throw IOException("ZIP central directory not found in the OTA package")
         }
         val cd = ByteArray(cdSize.toInt())
         raf.seek(cdOff)
         raf.readFully(cd)
         val entry = locateEntry(cd, "payload.bin")
-            ?: throw IOException("全量包里没有 payload.bin")
-        if (entry.method != 0) throw IOException("payload.bin 必须是未压缩存储")
+            ?: throw IOException("No payload.bin in the OTA package")
+        if (entry.method != 0) throw IOException("payload.bin must be stored uncompressed")
         val probe = ByteArray(
             min(fileLength - entry.localHeaderOffset, LOCAL_HEADER_PROBE_SIZE.toLong()).toInt()
         )
         raf.seek(entry.localHeaderOffset)
         raf.readFully(probe)
         val inner = locateLocalFileOffset(probe)
-        if (inner < 0) throw IOException("解析本地文件头失败")
+        if (inner < 0) throw IOException("Failed to parse local file header")
         val start = entry.localHeaderOffset + inner
-        onLog("[ota] payload.bin 偏移: $start (${formatSize(entry.uncompressedSize)})")
+        onLog("[ota] payload.bin offset: $start (${formatSize(entry.uncompressedSize)})")
         return start
     }
 

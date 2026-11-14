@@ -188,9 +188,9 @@ public class IcService extends IIcService.Stub {
              * running.  Fall back to a plain shell if toybox lacks setsid. */
             Process p = startDetached(script, env);
             pumpLog(p, log);
-            return "启动 " + script + " (attempts=" + attempts + ")  " + identity();
+            return "Starting " + script + " (attempts=" + attempts + ")  " + identity();
         } catch (IOException e) {
-            return "启动失败: " + e;
+            return "Start failed: " + e;
         }
     }
 

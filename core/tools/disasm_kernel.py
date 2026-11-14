@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-disasm_kernel.py — ARM64 内核函数反汇编工具
+disasm_kernel.py — ARM64 kernel function disassembly tool
 
-从 Image + kallsyms.txt 反汇编指定内核函数，用于推导 exploit 所需的静态地址和结构偏移。
+Disassembles selected kernel functions from Image + kallsyms.txt to derive the
+static addresses and structure offsets the exploit needs.
 
-依赖: pip install capstone
+Requires: pip install capstone
 
-用法:
+Usage:
   python disasm_kernel.py <subcmd> [--image IMAGE] [--kallsyms KALLSYMS]
 
-子命令:
-  cred_security    — security_prepare_creds / selinux_cred_prepare 等
-  lsm_order        — ordered_lsm_init / choose_major_lsm 等
+Subcommands:
+  cred_security    — security_prepare_creds / selinux_cred_prepare etc.
+  lsm_order        — ordered_lsm_init / choose_major_lsm etc.
   security_init    — security_init / lsm_set_blob_sizes
   selinux_complete — selinux_complete_init
   selinux_init     — selinux_init
-  selinux_state    — selinux_status_update_setenforce 等 (定位 selinux_state 地址)
-  targets          — do_timer_create / copy_process (定位 timer 分配调用点)
+  selinux_state    — selinux_status_update_setenforce etc. (locate the selinux_state address)
+  targets          — do_timer_create / copy_process (locate timer allocation call sites)
 """
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ from pathlib import Path
 try:
     from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, CS_GRP_CALL, CS_GRP_JUMP
 except ImportError:
-    print("需要 capstone: pip install capstone", file=sys.stderr)
+    print("capstone required: pip install capstone", file=sys.stderr)
     sys.exit(1)
 
 IMAGE_PATH = Path('Image')
@@ -82,7 +83,7 @@ def selinux_state():
         b = min((v for v in sy.values() if v > a), default=a + 0x1000)
         print(f'\n### {name} {a:#x} size={b - a:#x}')
         for i in md.disasm(img[a - TEXT_BASE:b - TEXT_BASE], a):
-            # 只输出包含 selinux_state 相关地址的指令
+            # Only print instructions containing selinux_state-related addresses
             if any(x in i.op_str for x in ['0xffffffc00a55a', '0xa55a', '#0xa4f0']):
                 print(f'{i.address:#x} +{i.address - a:#x}: {i.mnemonic:8} {i.op_str}')
 
@@ -102,8 +103,8 @@ CMDS = {
 
 if __name__ == '__main__':
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
-        print(f'用法: {sys.argv[0]} <{"|".join(CMDS.keys())}>')
-        print('可选: --image <path> --kallsyms <path>')
+        print(f'Usage: {sys.argv[0]} <{"|".join(CMDS.keys())}>')
+        print('Optional: --image <path> --kallsyms <path>')
         sys.exit(1)
     for i, arg in enumerate(sys.argv):
         if arg == '--image' and i + 1 < len(sys.argv):

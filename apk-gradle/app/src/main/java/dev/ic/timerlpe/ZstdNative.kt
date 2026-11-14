@@ -39,10 +39,10 @@ object ZstdNative {
      * the native side fails closed when the decoded size differs, and so do we.
      */
     fun decode(input: ByteArray, expected: Int): ByteArray {
-        val bin = binary ?: throw IOException("缺少内置 zstd 解码器（libextract.so）")
-        val dir = workDir ?: throw IOException("缓存目录不可用")
-        if (input.isEmpty()) throw IOException("zstd 数据为空")
-        if (expected <= 0) throw IOException("zstd 输出大小未知")
+        val bin = binary ?: throw IOException("Built-in zstd decoder missing (libextract.so)")
+        val dir = workDir ?: throw IOException("Cache directory unavailable")
+        if (input.isEmpty()) throw IOException("zstd data is empty")
+        if (expected <= 0) throw IOException("zstd output size unknown")
 
         val inFile = File.createTempFile("ic_zst_in", ".bin", dir)
         val outFile = File.createTempFile("ic_zst_out", ".bin", dir)
@@ -56,7 +56,7 @@ object ZstdNative {
              * the timeout forever if the native side wedges. */
             if (!process.waitFor(120, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
-                throw IOException("zstd 解码超时")
+                throw IOException("zstd decode timed out")
             }
             val diagnostics = try {
                 process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -65,12 +65,12 @@ object ZstdNative {
             }
             if (process.exitValue() != 0) {
                 throw IOException(
-                    "zstd 解码失败（exit=${process.exitValue()}）：${diagnostics.take(200)}"
+                    "zstd decode failed (exit=${process.exitValue()}): ${diagnostics.take(200)}"
                 )
             }
             val out = outFile.readBytes()
             if (out.size != expected) {
-                throw IOException("zstd 输出大小不符：期望 $expected，实际 ${out.size}")
+                throw IOException("zstd output size mismatch: expected $expected, got ${out.size}")
             }
             return out
         } finally {

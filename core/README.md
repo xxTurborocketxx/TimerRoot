@@ -1,34 +1,39 @@
-# core/ — 6.1 内核重构基线（vendored, MIT）
+# core/ — 6.1 kernel refactor baseline (vendored, MIT)
 
-`timer98260.c` 来自 **molanp/CVE-2026-98260-vivo-s60-poc**（MIT），
-其头部注明改编自 **woshigenm/CVE-2026-98260**（MIT）等移植版。
-保留原始版权声明，见 `LICENSE.molanp`。
+`timer98260.c` comes from **molanp/CVE-2026-98260-vivo-s60-poc** (MIT); its
+header notes it is adapted from **woshigenm/CVE-2026-98260** (MIT) and other
+ports. The original copyright notice is preserved; see `LICENSE.molanp`.
 
-选它作为重构基线的原因：
+Why it was chosen as the refactor baseline:
 
-- 6.1.145 上端到端验证通过（timer UAF → fake cred → SELinux permissive →
-  full cap → ksud late-load）；
-- 单文件、无外部依赖，包含 tracefs 事件 ID 自发现、线性映射基址投票、
-  两段式 socket 喷（phase1 在 exec 前、phase2 由 victim 页 free 触发）、
-  `scan_page_alloc_ours` 命中校验（pfn + 喷线程 tid + order）、
-  verify-and-repair 回读；
-- 端游为 shell 与 fake 两种落地，fake 路径直接对接 KernelSU late-load。
+- End-to-end verified on 6.1.145 (timer UAF → fake cred → SELinux permissive
+  → full caps → ksud late-load);
+- Single file, no external dependencies; includes tracefs event-ID
+  self-discovery, linear-mapping base voting, a two-phase socket spray
+  (phase 1 before exec, phase 2 triggered by the victim page being freed),
+  `scan_page_alloc_ours` hit verification (pfn + spray-thread tid + order),
+  and verify-and-repair read-back;
+- Two endgames, shell and fake cred; the fake path plugs directly into the
+  KernelSU late-load.
 
-`tools/derive_offsets.py` / `tools/disasm_kernel.py` 同样来自该仓库，用于从
-boot.img/Image 推导目标机偏移。
+`tools/derive_offsets.py` / `tools/disasm_kernel.py` come from the same
+repository and are used to derive the target device's offsets from
+boot.img/Image.
 
-## 构建
+## Build
 
 ```sh
 CC=$ANDROID_NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 $CC -O2 -static -pthread -Wall -Wextra core/timer98260.c -o t98260
 ```
 
-## 待做（refactor-98260 分支）
+## TODO (refactor-98260 branch)
 
-1. 把 `timer98260.c` 里写死的 PD2571（6.1.145）偏移抽成 profile 文件，
-   由 `uname -r` 选择（格式参考 dada-cve 的 kernel_profiles，但内容按
-   本仓库自有数据重写）；
-2. 并入本仓库已有的 vivo 6.1 机型偏移表与 KSU 交接脚本；
-3. 把 APK 侧（Shizuku 投放/运行）切到新 core；
-4. 5.10 支持作为第二优先级：沿用本仓库已测出的 5.10 偏移与忙轮询 killer。
+1. Extract the hard-coded PD2571 (6.1.145) offsets in `timer98260.c` into a
+   profile file selected by `uname -r` (format following dada-cve's
+   kernel_profiles, but content rewritten from this repository's own data);
+2. Merge in this repository's existing vivo 6.1 offset tables and KSU
+   handoff script;
+3. Switch the APK side (Shizuku deploy/run) to the new core;
+4. 5.10 support as second priority: reuse the 5.10 offsets and busy-poll
+   killer already tested in this repository.

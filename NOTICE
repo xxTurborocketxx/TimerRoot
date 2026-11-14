@@ -1,7 +1,7 @@
 IC Timer LPE
 ============
 
-Copyright (C) 2026 酷安@散花神木 and contributors
+Copyright (C) 2026 Coolapk @散花神木 (Sanhua Shenmu) and contributors
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,5 +31,5 @@ Third-party libraries used by the APK:
   COUI (io.github.suqi8.coui.kmp)             Apache-2.0
   Shizuku (dev.rikka.shizuku)                 Apache-2.0
 
-Full license texts are bundled in the app under the "开放源代码许可" page
+Full license texts are bundled in the app under the "Open Source Licenses" page
 (app/src/main/assets/licenses/).

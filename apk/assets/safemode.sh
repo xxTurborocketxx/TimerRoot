@@ -17,7 +17,7 @@ if [ "$(id -u 2>/dev/null)" != "0" ]; then
 		exec su -c "sh $0 $MODE"
 	fi
 	echo "[safe] root required (no su yet). Run this after a successful handoff,"
-	echo "[safe] or enable 安全模式 before starting the exploit."
+	echo "[safe] or enable safe mode before starting the exploit."
 	exit 1
 fi
 
