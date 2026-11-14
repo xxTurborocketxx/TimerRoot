@@ -2,6 +2,8 @@ IC Timer LPE
 ============
 
 Copyright (C) 2026 Coolapk @散花神木 (Sanhua Shenmu) and contributors
+Portions (Motorola Edge 50 Ultra / ctwo port): Copyright (C) 2026 fork
+contributors - https://github.com/xxTurborocketxx/ic-timer-lpe
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,4 +34,4 @@ Third-party libraries used by the APK:
   Shizuku (dev.rikka.shizuku)                 Apache-2.0
 
 Full license texts are bundled in the app under the "Open Source Licenses" page
-(app/src/main/assets/licenses/).
+(apk-gradle/app/src/main/assets/licenses/).
