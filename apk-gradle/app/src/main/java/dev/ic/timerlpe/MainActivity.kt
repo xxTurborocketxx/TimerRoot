@@ -173,6 +173,10 @@ class MainActivity : ComponentActivity() {
     private var showManual by mutableStateOf(false)
     private var runStage by mutableStateOf("")
     private var runStageIndex = -1
+    /* True once the core log proves root (LPE-PROOF / module resident).
+     * The core can still exit 1 when only the final "am start" of the
+     * manager fails - that is success, not a failed run. */
+    private var rootConfirmed = false
     private var offsetPrompt by mutableStateOf<String?>(null)
     private var notice by mutableStateOf<Notice?>(null)
     private var parseMenu by mutableStateOf(false)
@@ -1372,6 +1376,7 @@ class MainActivity : ComponentActivity() {
             "\nIC_KSU=1"
 
         busy = true
+        rootConfirmed = false
         runStageIndex = 0
         runStage = "1/${RUN_STAGES.size} ${RUN_STAGES.first().first}"
         runStamp = stamp
@@ -1407,7 +1412,10 @@ class MainActivity : ComponentActivity() {
                                 "falling back to an installed manager automatically"
                         )
                     }
-                    val payload = "[ -x /data/local/tmp/ksud_next ] || echo ksud_next-missing; /data/local/tmp/ksud_next late-load --kmi android14-6.1 --allow-shell --package-name kqvdie.zeykvw.hpbcyd 2>&1; $proof"
+                    /* Pre-clean the KSU daemon area before the late-load so the
+                     * manager never spawns a stale /data/adb/ksud again (known
+                     * superuser-tab hang after reruns). */
+                    val payload = "rm -f /data/adb/ksud /data/adb/ksu/bin/busybox /data/adb/ksu/bin/bootctl /data/adb/ksu/bin/resetprop 2>/dev/null; cp /data/local/tmp/ksud_next /data/adb/ksud 2>/dev/null; chmod 755 /data/adb/ksud 2>/dev/null; [ -x /data/local/tmp/ksud_next ] || echo ksud_next-missing; /data/local/tmp/ksud_next late-load --kmi android14-6.1 --allow-shell --package-name kqvdie.zeykvw.hpbcyd 2>&1; $proof"
 
                     s.truncate(script)
                     push(s, SCHEME_ASSET, script)
@@ -2255,9 +2263,14 @@ class MainActivity : ComponentActivity() {
      * "plant" lines of a later stage repeat earlier text.
      */
     private fun updateStage(line: String) {
+        if (ROOT_PROOF_MARKERS.any { line.contains(it) }) rootConfirmed = true
         if (line.contains("[core] exit=")) {
             val rc = line.substringAfter("[core] exit=").trim()
-            runStage = if (rc == "0") "Done" else "Failed (exit=$rc)"
+            runStage = when {
+                rc == "0" -> "Done"
+                rootConfirmed -> "Done (manager autostart incomplete)"
+                else -> "Failed (exit=$rc)"
+            }
             busy = false
             // Keep the outcome on the button for a moment, then go back idle.
             lifecycleScope.launch {
@@ -2307,6 +2320,12 @@ class MainActivity : ComponentActivity() {
             "Escalate euid" to listOf("stage fake_euid"),
             "Run payload" to listOf("exec payload", "[fullshell]", "plant verified"),
             "Done" to listOf("handoff OK", "ROOT_SHELL_OK"),
+        )
+
+        /* Log lines that prove root was reached, whatever the final exit
+         * code says (the manager autostart can still fail afterwards). */
+        private val ROOT_PROOF_MARKERS = listOf(
+            "LPE-PROOF", "uid=0(root)", "module resident"
         )
 
         private val KSU_NAMES = listOf(
