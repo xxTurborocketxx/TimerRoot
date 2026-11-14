@@ -386,7 +386,7 @@ class MainActivity : ComponentActivity() {
             topBar = {
                 BlurredBar(backdrop = backdrop) {
                     TopAppBar(
-                        title = "IC Timer LPE",
+                        title = "TimerRoot",
                         scrollBehavior = scrollBehavior,
                         color = Color.Transparent
                     )
@@ -855,7 +855,7 @@ class MainActivity : ComponentActivity() {
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = "IC Timer LPE",
+                                    text = "TimerRoot",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
