@@ -208,6 +208,43 @@ static int wr(const char *p, const char *s)
     close(fd);
     return r < 0 ? -1 : 0;
 }
+static int g_ring_orig = -1;
+
+static int read_ring_kb(void)
+{
+    int fd = open(TR "/buffer_size_kb", O_RDONLY);
+    char buf[32];
+    ssize_t n;
+
+    if (fd < 0)
+        return -1;
+    n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0)
+        return -1;
+    buf[n] = '\0';
+    return atoi(buf);
+}
+
+static int set_ring_kb(int kb)
+{
+    char buf[32];
+
+    snprintf(buf, sizeof(buf), "%d\n", kb);
+    wr(TR "/buffer_size_kb", buf);
+    return read_ring_kb() >= kb;
+}
+
+static void ring_restore(void)
+{
+    char buf[32];
+
+    if (g_ring_orig <= 0)
+        return;
+    snprintf(buf, sizeof(buf), "%d\n", g_ring_orig);
+    wr(TR "/buffer_size_kb", buf);
+}
+
 static void pin(int cpu)
 {
     cpu_set_t set;
@@ -2500,6 +2537,30 @@ static void dump_sites(void)
     enable_events();
     kick_rss();
     usleep(50000);
+
+    /* Ring expansion: the default trace ring is tiny (7 KB/CPU on this
+     * build) and calibrate_base plus all later scan windows read from it
+     * directly -- events cycle out before the reader drains the ring.
+     * Grow the ring once, verified via read-back with a fallback ladder;
+     * discover_page_types() reads the current value as "previous" and so
+     * keeps the big ring through every later window.  atexit restores. */
+    {
+        static const int ring_sizes[] = {16384, 8192, 4096, 2048, 1024, 512};
+        int ri;
+
+        g_ring_orig = read_ring_kb();
+        for (ri = 0; ri < (int)(sizeof(ring_sizes) / sizeof(ring_sizes[0])); ri++)
+            if (set_ring_kb(ring_sizes[ri]))
+            {
+                logf("[ring] buffer_size_kb=%d (orig=%d)\n",
+                     read_ring_kb(), g_ring_orig);
+                break;
+            }
+        if (ri == (int)(sizeof(ring_sizes) / sizeof(ring_sizes[0])))
+            logf("[-] ring expansion failed; continuing with default (%d)\n",
+                 g_ring_orig);
+        atexit(ring_restore);
+    }
     if (discover_page_types(raw) != 0) { logf("[-] discover failed\n"); return; }
     logf("[sites] page_alloc=%d page_free=%d\n", g_t_page_alloc, g_t_page_free);
     prefill_timers(64);
@@ -2586,7 +2647,7 @@ static int read_syms_file(const char *path)
                 break;
             }
         }
-        if (fbuild[0] && !strstr(fbuild, "6.1.145"))
+        if (fbuild[0] && !strstr(fbuild, "6.1.145") && !strstr(fbuild, "6.1.157"))
         {
             logf("[syms] %s build=%s is not 6.1.145; ignoring the table\n",
                  path, fbuild);
@@ -3289,6 +3350,30 @@ int main(int argc, char **argv)
     enable_events();
     kick_rss();
     usleep(50000);
+
+    /* Ring expansion: the default trace ring is tiny (7 KB/CPU on this
+     * build) and calibrate_base plus all later scan windows read from it
+     * directly -- events cycle out before the reader drains the ring.
+     * Grow the ring once, verified via read-back with a fallback ladder;
+     * discover_page_types() reads the current value as "previous" and so
+     * keeps the big ring through every later window.  atexit restores. */
+    {
+        static const int ring_sizes[] = {16384, 8192, 4096, 2048, 1024, 512};
+        int ri;
+
+        g_ring_orig = read_ring_kb();
+        for (ri = 0; ri < (int)(sizeof(ring_sizes) / sizeof(ring_sizes[0])); ri++)
+            if (set_ring_kb(ring_sizes[ri]))
+            {
+                logf("[ring] buffer_size_kb=%d (orig=%d)\n",
+                     read_ring_kb(), g_ring_orig);
+                break;
+            }
+        if (ri == (int)(sizeof(ring_sizes) / sizeof(ring_sizes[0])))
+            logf("[-] ring expansion failed; continuing with default (%d)\n",
+                 g_ring_orig);
+        atexit(ring_restore);
+    }
 
     {
         int discovered = 0;

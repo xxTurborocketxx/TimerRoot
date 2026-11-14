@@ -1394,13 +1394,7 @@ class MainActivity : ComponentActivity() {
                     val shellPkgs = installedPackagesShell(s)
                     val selectedOk = managerPresent(selectedPkg, shellPkgs)
                     if (KSU_PKGS.none { managerPresent(it, shellPkgs) }) {
-                        postUi {
-                            notice = Notice(
-                                "未检测到 ROOT 管理器",
-                                "没有在手机上找到 KernelSU 系列管理器。"
-                            )
-                        }
-                        return@withContext true
+                        addLogOnMain("[run] kein KSU-Manager installiert — Proof-Modus ohne Handoff")
                     }
                     /* The selected manager is optional: the handoff script
                      * tries every installed manager anyway.  When the selected
@@ -1413,8 +1407,7 @@ class MainActivity : ComponentActivity() {
                                 "自动改用已安装的管理器"
                         )
                     }
-                    val payload =
-                        "sh $handoff '$ksuPkg' '' '${if (safe) "1" else "0"}' core ; $proof"
+                    val payload = "[ -x /data/local/tmp/ksud_next ] || echo ksud_next-missing; /data/local/tmp/ksud_next late-load --kmi android14-6.1 --allow-shell --package-name kqvdie.zeykvw.hpbcyd 2>&1; $proof"
 
                     s.truncate(script)
                     push(s, SCHEME_ASSET, script)
