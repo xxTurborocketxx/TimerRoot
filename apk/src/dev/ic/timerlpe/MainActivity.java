@@ -58,8 +58,8 @@ public class MainActivity extends Activity {
      * manager APK and speak the same "late-load" CLI.  BakaSU is the renamed
      * ReSukiSU; auto-detect also accepts the old com.resukisu.resukisu id. */
     private static final String[] KSU_NAMES = {
-            "自动检测", "KernelSU", "KernelSU-Next", "SukiSU Ultra",
-            "BakaSU", "ReSukiSU (旧包名)", "SakiSU", "FinaSU", "7kimisu" };
+            "Auto-detect", "KernelSU", "KernelSU-Next", "SukiSU Ultra",
+            "BakaSU", "ReSukiSU (old pkg name)", "SakiSU", "FinaSU", "7kimisu" };
     private static final String[] KSU_PKGS = {
             "",
             "me.weishu.kernelsu", "com.rifsxd.ksunext", "com.sukisu.ultra",
@@ -92,9 +92,9 @@ public class MainActivity extends Activity {
             () -> ui.post(() -> { bound = false; svc = null; refresh(); });
     private final Shizuku.OnRequestPermissionResultListener onPerm =
             (code, res) -> ui.post(() -> {
-                append("Shizuku 权限: " +
+                append("Shizuku permission: " +
                        (res == PackageManager.PERMISSION_GRANTED
-                        ? "已允许" : "被拒绝(" + res + ")"));
+                        ? "granted" : "denied(" + res + ")"));
                 if (res == PackageManager.PERMISSION_GRANTED)
                     bindService();
                 refresh();
@@ -110,7 +110,7 @@ public class MainActivity extends Activity {
                 try {
                     id = svc.identity();
                 } catch (Throwable t) {
-                    id = "读取身份失败: " + t;
+                    id = "Failed to read identity: " + t;
                 }
                 final String fid = id;
                 String dev;
@@ -124,7 +124,7 @@ public class MainActivity extends Activity {
                 ui.post(() -> {
                     append("[service] " + fid);
                     if (!fdev.isEmpty())
-                        append("[设备]' + NL + '" + fdev);
+                        append("[device]' + NL + '" + fdev);
                     refresh();
                 });
             }, "svc-identity").start();
@@ -171,7 +171,7 @@ public class MainActivity extends Activity {
 
         FrameLayout content = new FrameLayout(this);
 
-        /* ---------------- 首页 ---------------- */
+        /* ---------------- Home ---------------- */
         LinearLayout homePage = new LinearLayout(this);
         homePage.setOrientation(LinearLayout.VERTICAL);
         homePage.setPadding(p, p, p, p);
@@ -190,13 +190,13 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         connectBtn = new Button(this);
-        connectBtn.setText("连接 Shizuku");
+        connectBtn.setText("Connect Shizuku");
         connectBtn.setOnClickListener(v -> connect());
         runBtn = new Button(this);
-        runBtn.setText("一键越狱");
+        runBtn.setText("One-tap jailbreak");
         runBtn.setOnClickListener(v -> run());
         Button diagBtn = new Button(this);
-        diagBtn.setText("诊断");
+        diagBtn.setText("Diagnostics");
         diagBtn.setOnClickListener(v -> diag());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
@@ -210,10 +210,10 @@ public class MainActivity extends Activity {
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
         parseBtn = new Button(this);
-        parseBtn.setText("解析偏移");
+        parseBtn.setText("Parse offsets");
         parseBtn.setOnClickListener(v -> parseOffsets());
         cleanBtn = new Button(this);
-        cleanBtn.setText("清理 KSU");
+        cleanBtn.setText("Clean KSU");
         cleanBtn.setOnClickListener(v -> cleanup());
         tools.addView(parseBtn, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -225,7 +225,7 @@ public class MainActivity extends Activity {
         ksuRow.setOrientation(LinearLayout.HORIZONTAL);
         TextView ksuLabel = new TextView(this);
         ksuLabel.setTextSize(12);
-        ksuLabel.setText("Root 交接(KSU late-load):");
+        ksuLabel.setText("Root handoff (KSU late-load):");
         ksuLabel.setPadding(0, p / 2, p / 2, p / 2);
         ksuView = new Spinner(this);
         ArrayAdapter<String> ksuAdapter = new ArrayAdapter<>(this,
@@ -241,24 +241,24 @@ public class MainActivity extends Activity {
 
         safeView = new CheckBox(this);
         safeView.setTextSize(12);
-        safeView.setText("安全模式：提权时禁用全部 KSU 模块");
+        safeView.setText("Safe mode: disable all KSU modules during escalation");
         homePage.addView(safeView);
 
         TextView warn = new TextView(this);
         warn.setTextSize(12);
-        warn.setText("使用手册\n"
-                + "规则：每次完整运行前重启手机；运行后残留的 ic-timer 进程"
-                + "不能 kill -9，只能重启清理。接管 KSU 需要先装好对应管理器"
-                + "的 APK（管理器自身的内核模块由 late-load 加载）。\n"
-                + "已内置偏移（机型 + 版本匹配）：\n"
-                + "· PD2506 / V2506（Y500）：16.1.15.0、16.1.13.2\n"
-                + "· PD2516 / V2516（Y500 Pro）：16.1.11.0\n"
-                + "· PD2307 / PD2329 / V2307（iQOO 12）：16.2.11、16.2.20.3、16.2.20.7、16.2.21.1\n"
-                + "· PD2417 / V2417（Z9 Turbo+）：16.2.14.1\n"
-                + "· PD2324 / V2324A / V2324HA / V2324H / PD2324J（X100 系列）：16.2.12.0、16.2.13.1\n"
-                + "列表内机型均已内置 KSU 交接所需的对象地址，无需解析。\n"
-                + "列表外的新 build：点“解析偏移”用系统文件选择器选 boot.img。\n"
-                + "本软件免费开源，作者酷安@散花神木");
+        warn.setText("User manual\n"
+                + "Rules: reboot the phone before every full run; leftover ic-timer processes after a run"
+                + "cannot be kill -9'd - only a reboot clears them. Taking over KSU requires the matching manager's"
+                + " APK installed first (the manager's own kernel module is loaded via late-load).\n"
+                + "Built-in offsets (model + version match):\n"
+                + "· PD2506 / V2506 (Y500): 16.1.15.0, 16.1.13.2\n"
+                + "· PD2516 / V2516 (Y500 Pro): 16.1.11.0\n"
+                + "· PD2307 / PD2329 / V2307 (iQOO 12): 16.2.11, 16.2.20.3, 16.2.20.7, 16.2.21.1\n"
+                + "· PD2417 / V2417 (Z9 Turbo+): 16.2.14.1\n"
+                + "· PD2324 / V2324A / V2324HA / V2324H / PD2324J (X100 series): 16.2.12.0, 16.2.13.1\n"
+                + "Models in the list have the object addresses needed for the KSU handoff built in; no parsing needed.\n"
+                + "Newer builds outside the list: tap \"Parse offsets\" and pick a boot.img with the system file picker.\n"
+                + "This software is free and open source, by Coolapk @散花神木 (Sanhua Shenmu)");
         warn.setPadding(0, p / 2, 0, 0);
         homePage.addView(warn);
 
@@ -268,17 +268,17 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        /* ---------------- 日志 ---------------- */
+        /* ---------------- Log ---------------- */
         LinearLayout logPageView = new LinearLayout(this);
         logPageView.setOrientation(LinearLayout.VERTICAL);
         logPageView.setPadding(p, p, p, p);
         TextView logTitle = new TextView(this);
-        logTitle.setText("日志");
+        logTitle.setText("Log");
         logTitle.setTextSize(16);
         logTitle.setTypeface(Typeface.DEFAULT_BOLD);
         logPageView.addView(logTitle);
         Button clearBtn = new Button(this);
-        clearBtn.setText("清空日志");
+        clearBtn.setText("Clear log");
         clearBtn.setOnClickListener(v -> log.setText(""));
         logPageView.addView(clearBtn);
         scroll = new ScrollView(this);
@@ -293,12 +293,12 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        /* ---------------- 关于 ---------------- */
+        /* ---------------- About ---------------- */
         LinearLayout aboutPageView = new LinearLayout(this);
         aboutPageView.setOrientation(LinearLayout.VERTICAL);
         aboutPageView.setPadding(p, p, p, p);
         TextView aboutTitle = new TextView(this);
-        aboutTitle.setText("关于");
+        aboutTitle.setText("About");
         aboutTitle.setTextSize(16);
         aboutTitle.setTypeface(Typeface.DEFAULT_BOLD);
         aboutPageView.addView(aboutTitle);
@@ -313,18 +313,18 @@ public class MainActivity extends Activity {
         aboutVer.setPadding(0, p / 2, 0, p);
         aboutPageView.addView(aboutVer);
 
-        aboutPageView.addView(linkRow("查看源代码",
-                "在 GitHub 上查看源代码",
+        aboutPageView.addView(linkRow("View source code",
+                "View the source on GitHub",
                 "https://github.com/kzktor/ic-timer-lpe"));
-        aboutPageView.addView(linkRow("加入社区",
-                "加入 QQ 群",
+        aboutPageView.addView(linkRow("Join the community",
+                "Join the QQ group",
                 "https://qm.qq.com/q/MBM9NcDXYy"));
-        aboutPageView.addView(linkRow("问题反馈",
-                "在 GitHub Issues 提交问题",
+        aboutPageView.addView(linkRow("Feedback",
+                "Report issues on GitHub Issues",
                 "https://github.com/kzktor/ic-timer-lpe/issues"));
 
         TextView supTitle = new TextView(this);
-        supTitle.setText("支持开发者");
+        supTitle.setText("Support the developer");
         supTitle.setTextSize(13);
         supTitle.setPadding(0, p, 0, p / 2);
         aboutPageView.addView(supTitle);
@@ -338,16 +338,16 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView licTitle = new TextView(this);
-        licTitle.setText("开放源代码许可");
+        licTitle.setText("Open source licenses");
         licTitle.setTextSize(13);
         licTitle.setPadding(0, p, 0, p / 2);
         aboutPageView.addView(licTitle);
         TextView licBody = new TextView(this);
         licBody.setTextSize(11);
-        licBody.setText("本项目：kzktor/ic-timer-lpe\n"
-                + "· molanp/CVE-2026-98260-vivo-s60-poc（MIT）\n"
-                + "· woshigenm/CVE-2026-98260（MIT）\n"
-                + "· whooslizi/infinitycore-x200pro（GPL-3.0）\n"
+        licBody.setText("This project: kzktor/ic-timer-lpe\n"
+                + "· molanp/CVE-2026-98260-vivo-s60-poc (MIT)\n"
+                + "· woshigenm/CVE-2026-98260 (MIT)\n"
+                + "· whooslizi/infinitycore-x200pro (GPL-3.0)\n"
                 + "· nisu123f/dada-cve-AN00\n"
                 + "· kpgc10kai/TimerRoot");
         aboutPageView.addView(licBody);
@@ -364,17 +364,17 @@ public class MainActivity extends Activity {
         pageLog.setVisibility(View.GONE);
         pageAbout.setVisibility(View.GONE);
 
-        /* ---------------- 底部导航 ---------------- */
+        /* ---------------- Bottom navigation ---------------- */
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         Button navHome = new Button(this);
-        navHome.setText("首页");
+        navHome.setText("Home");
         navHome.setOnClickListener(v -> showPage(0));
         Button navLog = new Button(this);
-        navLog.setText("日志");
+        navLog.setText("Log");
         navLog.setOnClickListener(v -> showPage(1));
         Button navAbout = new Button(this);
-        navAbout.setText("关于");
+        navAbout.setText("About");
         navAbout.setOnClickListener(v -> showPage(2));
         nav.addView(navHome, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -434,18 +434,18 @@ public class MainActivity extends Activity {
     private void connect() {
         try {
             if (!Shizuku.pingBinder()) {
-                append("Shizuku 未运行：请在 Shizuku 应用里通过无线调试或 ADB 启动服务");
+                append("Shizuku not running: start the service in the Shizuku app via wireless debugging or ADB");
                 refresh();
                 return;
             }
             if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                append("已弹出 Shizuku 授权请求，请允许");
+                append("Shizuku authorization requested; please grant it");
                 Shizuku.requestPermission(REQ);
                 return;
             }
             bindService();
         } catch (Throwable t) {
-            append("连接失败: " + t);
+            append("Connection failed: " + t);
         }
         refresh();
     }
@@ -460,16 +460,16 @@ public class MainActivity extends Activity {
                     .tag("ic-lpe")
                     .processNameSuffix(":icsvc");
             Shizuku.bindUserService(args, conn);
-            append("正在绑定 shell 用户服务…");
+            append("Binding the shell user service...");
         } catch (Throwable t) {
-            append("绑定失败: " + t);
+            append("Binding failed: " + t);
         }
     }
 
     private void diag() {
         final IIcService s = svc;
         if (s == null) {
-            append("服务未连接：先点“连接 Shizuku”");
+            append("Service not connected: tap \"Connect Shizuku\" first");
             return;
         }
         new Thread(() -> {
@@ -485,17 +485,17 @@ public class MainActivity extends Activity {
                         + "grep -Ei 'kernelsu|sukisu|resukisu|bakasu|sakisu|"
                         + "sevenk|vivoksu|ksunext|fina'");
             } catch (Throwable t) {
-                out = "诊断失败: " + t;
+                out = "Diagnostics failed: " + t;
             }
             final String f = out;
-            ui.post(() -> append("[诊断]\n" + f));
+            ui.post(() -> append("[diagnostics]\n" + f));
         }, "diag").start();
     }
 
     private void run() {
         final IIcService s = svc;
         if (s == null) {
-            append("服务未连接：先点“连接 Shizuku”");
+            append("Service not connected: tap \"Connect Shizuku\" first");
             return;
         }
         /* Fixed ladder: the run loop stops by itself as soon as one attempt
@@ -553,9 +553,9 @@ public class MainActivity extends Activity {
                 String id0 = s.identity();
                 if (!id0.startsWith("uid=2000 ") || !id0.contains("ctx=u:r:shell")) {
                     ui.post(() -> {
-                        append("[run] 拒绝执行：用户服务身份不是 shell\n" + id0
-                                + "\n请用 ADB / 无线调试启动 Shizuku（不要用 root 启动），"
-                                + "再点“连接 Shizuku”。");
+                        append("[run] refusing to run: the user service identity is not shell\n" + id0
+                                + "\nStart Shizuku via ADB / wireless debugging (not as root), "
+                                + "then tap \"Connect Shizuku\".");
                         runBtn.setEnabled(true);
                     });
                     return;
@@ -583,7 +583,7 @@ public class MainActivity extends Activity {
                 String r = s.start(script, bin, logFile, att, payload,
                         extraEnv);
                 ui.post(() -> {
-                    append("[run] 方案: " + scheme
+                    append("[run] scheme: " + scheme
                             + "  KSU: " + KSU_NAMES[ksuIdx]
                             + "\n" + r);
                     logPath = logFile;
@@ -594,21 +594,21 @@ public class MainActivity extends Activity {
                 });
             } catch (Throwable t) {
                 ui.post(() -> {
-                    append("[run] 失败: " + t);
+                    append("[run] failed: " + t);
                     runBtn.setEnabled(true);
                 });
             }
         }, "runner").start();
     }
 
-    /* "解析偏移" opens the system document picker (SAF), copies the chosen
+    /* "Parse offsets" opens the system document picker (SAF), copies the chosen
      * boot.img into /data/local/tmp through the Shizuku service, and runs
      * `ic-timer syms` on it.  This is optional: Y500, iQOO 12 and the
      * gf506252 PD2506 build already carry their tables in the binary.  The
      * PC-side tool/parse_offsets.py also accepts a full OTA zip. */
     private void parseOffsets() {
         if (svc == null) {
-            append("服务未连接：先点“连接 Shizuku”");
+            append("Service not connected: tap \"Connect Shizuku\" first");
             return;
         }
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -619,7 +619,7 @@ public class MainActivity extends Activity {
         try {
             startActivityForResult(i, REQ_PICK);
         } catch (Throwable t) {
-            append("[解析偏移] 无法打开文件选择器: " + t);
+            append("[parse offsets] cannot open the file picker: " + t);
         }
     }
 
@@ -629,7 +629,7 @@ public class MainActivity extends Activity {
         if (req != REQ_PICK)
             return;
         if (res != RESULT_OK || data == null || data.getData() == null) {
-            append("[解析偏移] 已取消");
+            append("[parse offsets] cancelled");
             return;
         }
         Uri uri = data.getData();
@@ -643,7 +643,7 @@ public class MainActivity extends Activity {
     private void doParseSelected(final Uri uri) {
         final IIcService s = svc;
         if (s == null) {
-            append("服务未连接：先点“连接 Shizuku”");
+            append("Service not connected: tap \"Connect Shizuku\" first");
             return;
         }
         parseBtn.setEnabled(false);
@@ -674,7 +674,7 @@ public class MainActivity extends Activity {
                 } finally {
                     in.close();
                 }
-                out = "已选择: " + uri.getLastPathSegment()
+                out = "Selected: " + uri.getLastPathSegment()
                         + " (" + off + " bytes)\n";
                 out += s.runCmd("ls -l " + img + " 2>&1; "
                         + bin + " syms " + img + " " + syms + " 2>&1; "
@@ -682,11 +682,11 @@ public class MainActivity extends Activity {
                         + "sed -n '1,3p' " + syms + " 2>/dev/null; "
                         + "rm -f " + img);
             } catch (Throwable t) {
-                out = "解析失败: " + t;
+                out = "Parse failed: " + t;
             }
             final String f = out;
             ui.post(() -> {
-                append("[解析偏移]\n" + f);
+                append("[parse offsets]\n" + f);
                 parseBtn.setEnabled(true);
             });
         }, "syms").start();
@@ -695,20 +695,20 @@ public class MainActivity extends Activity {
     private void cleanup() {
         final IIcService s = svc;
         if (s == null) {
-            append("服务未连接：先点“连接 Shizuku”");
+            append("Service not connected: tap \"Connect Shizuku\" first");
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("清理 KernelSU")
-                .setMessage("删除 /data/adb/ksu、/data/adb/modules、"
-                        + "/data/adb/modules_update 等 KSU 文件，并清理本工具的"
-                        + "临时文件。管理器 APK 默认保留。\n\n"
-                        + "已加载的内核模块要重启后才消失；清理后请重启再提权。")
-                .setPositiveButton("清理(保留管理器)",
+                .setTitle("Clean KernelSU")
+                .setMessage("Deletes /data/adb/ksu, /data/adb/modules, "
+                        + "/data/adb/modules_update and other KSU files, and cleans this tool's "
+                        + "temp files. The manager APK is kept by default.\n\n"
+                        + "A loaded kernel module disappears only after a reboot; reboot before escalating again after cleaning.")
+                .setPositiveButton("Clean (keep the manager)",
                         (d, w) -> doCleanup(s, false))
-                .setNeutralButton("连管理器一起卸载",
+                .setNeutralButton("Uninstall the manager too",
                         (d, w) -> doCleanup(s, true))
-                .setNegativeButton("取消", null)
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 
@@ -724,10 +724,10 @@ public class MainActivity extends Activity {
                 out = s.runCmd("sh " + script + " --logs"
                         + (apk ? " --apk" : "") + " 2>&1");
             } catch (Throwable t) {
-                out = "清理失败: " + t;
+                out = "Cleanup failed: " + t;
             }
             final String f = out;
-            ui.post(() -> append("[清理]\n" + f));
+            ui.post(() -> append("[cleanup]\n" + f));
         }, "cleanup").start();
     }
 
@@ -751,18 +751,18 @@ public class MainActivity extends Activity {
         StringBuilder sb = new StringBuilder();
         try {
             if (Shizuku.pingBinder()) {
-                sb.append("Shizuku: 运行中  uid=").append(Shizuku.getUid())
-                  .append("  版本=").append(Shizuku.getVersion())
+                sb.append("Shizuku: running  uid=").append(Shizuku.getUid())
+                  .append("  version=").append(Shizuku.getVersion())
                   .append("  ctx=").append(Shizuku.getSELinuxContext())
                   .append(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                          ? "  权限: 已授权" : "  权限: 未授权");
+                          ? "  permission: granted" : "  permission: not granted");
             } else {
-                sb.append("Shizuku: 未运行（在 Shizuku 里用无线调试或 ADB 启动）");
+                sb.append("Shizuku: not running (start it in Shizuku via wireless debugging or ADB)");
             }
         } catch (Throwable t) {
-            sb.append("Shizuku 状态读取失败: ").append(t);
+            sb.append("Failed to read Shizuku status: ").append(t);
         }
-        sb.append("\n用户服务: ").append(bound ? "已连接" : "未连接");
+        sb.append("\nUser service: ").append(bound ? "connected" : "not connected");
         if (svc != null) {
             try {
                 sb.append("  ").append(svc.identity());

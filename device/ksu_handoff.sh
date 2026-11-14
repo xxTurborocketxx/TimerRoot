@@ -22,7 +22,7 @@
 #   * SAFE_MODE touches <module>/disable for every module (KernelSU skips a
 #     module with that file) and records the list so --restore can undo it.
 #   * ksud install + launching the manager run after the module is live, so
-#     the manager's "越狱模式" page can install the userspace su if needed.
+#     the manager's "jailbreak mode" page can install the userspace su if needed.
 
 PKG="$1"
 KMI="$2"
@@ -331,10 +331,10 @@ if su_works; then
 	exit 0
 elif ksu_live; then
 	say "handoff PARTIAL: KSU live, su not usable yet"
-	say "  (open the manager; its 越狱模式 page installs the userspace)"
+	say "  (open the manager; its jailbreak-mode page installs the userspace)"
 	exit 6
 else
 	say "handoff UNCONFIRMED: no live KernelSU found"
-	say "  (if the manager now shows 越狱模式, the load completed after this check)"
+	say "  (if the manager now shows jailbreak mode, the load completed after this check)"
 	exit 7
 fi

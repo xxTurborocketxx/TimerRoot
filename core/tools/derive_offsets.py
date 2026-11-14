@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-derive_offsets.py — 从 arm64 内核 Image 提取 BTF 结构偏移 + kallsyms 符号表
+derive_offsets.py — extract BTF structure offsets + kallsyms symbol table from an arm64 kernel Image
 
-纯 Python，无外部依赖。
+Pure Python, no external dependencies.
 
-用法:
-  python derive_offsets.py [Image路径]
+Usage:
+  python derive_offsets.py [path-to-Image]
 
-默认读取当前目录的 Image 文件。
+Reads the Image file in the current directory by default.
 
-输出:
-  - BTF 结构偏移（task_struct, cred, k_itimer, seccomp_filter 等）
-  - kallsyms.txt — 恢复的内核符号表
-  - static-values.txt — 导出的偏移值
+Output:
+  - BTF structure offsets (task_struct, cred, k_itimer, seccomp_filter, …)
+  - kallsyms.txt — recovered kernel symbol table
+  - static-values.txt — exported offset values
 
-从 boot.img 提取 Image 的方法:
-  1. 用 magiskboot 解包: magiskboot unpack boot.img → 得到 kernel
-  2. 如果 kernel 是压缩的 (gzip/lz4): magiskboot decompress kernel kernel_raw
-  3. 验证: hexdump -C kernel_raw | head  → 应看到 ARM\x64 magic
-  4. 重命名: mv kernel_raw Image
+How to extract the Image from boot.img:
+  1. Unpack with magiskboot: magiskboot unpack boot.img → yields kernel
+  2. If the kernel is compressed (gzip/lz4): magiskboot decompress kernel kernel_raw
+  3. Verify: hexdump -C kernel_raw | head  → should show the ARM\x64 magic
+  4. Rename: mv kernel_raw Image
 """
 import sys
 import struct

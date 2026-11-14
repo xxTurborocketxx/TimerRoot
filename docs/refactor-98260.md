@@ -1,134 +1,166 @@
-# 0.12 重构计划（分支 refactor-98260，不合入 main）
+# 0.12 refactor plan (branch refactor-98260, not merged into main)
 
-本分支只用于重构，**不合并 main**。main 停在 0.11.67。
+This branch is only for the refactor and is **not merged into main**. main
+sits at 0.11.67.
 
-## 参考实现与可借鉴点
+## Reference implementations and what to borrow
 
-| 来源 | 关键做法 |
+| Source | Key approach |
 | --- | --- |
-| `kzktor/ic-timer-lpe` main | 现有 A/B/candidate 链、slide、mcast、KSU 交接 |
-| [kpgc10kai/TimerRoot](https://github.com/kpgc10kai/TimerRoot)（6.6/6.18） | BTF 取偏移；最多 12 次 attempt；trace 校验 `free_seen=1 + burst hit=1` 才 reap；rootd socket |
-| `whooslizi/infinitycore-x200pro` | v2 verify-and-repair（/proc/self/status 回读重写）；v4 pre-zombie free watcher（异核 drain exec 核 raw ring，按 pfn 匹配，命中即放 phase2）；v5 全核 watcher + harvest；一次 boot 一次尝试 |
-| `molanp/CVE-2026-98260-vivo-s60-poc` | 两段式喷：phase1 在 exec 前，phase2 由 victim pfn free 触发；`scan_page_alloc_ours` 同时校验 pfn 与喷线程 tid；raw 扫描布局 type@i-8 / pid@i-4 / pfn@i / order@i+8 |
-| `nisu123f/dada-cve-AN00` | 5.10.236-android12-9 profile：`task->cred=0x780`、`real_cred=0x778`、`comm=0x790`、cred `copy_size=168`、`caps@40`、`user/user_ns/group_info @ 128/136/144`、`init_cred` 等离线地址 |
+| `kzktor/ic-timer-lpe` main | Existing A/B/candidate chain, slide, mcast, KSU handoff |
+| [kpgc10kai/TimerRoot](https://github.com/kpgc10kai/TimerRoot) (6.6/6.18) | BTF-derived offsets; at most 12 attempts; trace validates `free_seen=1 + burst hit=1` before reaping; rootd socket |
+| `whooslizi/infinitycore-x200pro` | v2 verify-and-repair (read-back rewrite via /proc/self/status); v4 pre-zombie free watcher (another core drains the exec core's raw ring, matches by pfn, releases phase 2 on a hit); v5 all-core watcher + harvest; one attempt per boot |
+| `molanp/CVE-2026-98260-vivo-s60-poc` | Two-phase spray: phase 1 before exec, phase 2 triggered by the victim pfn being freed; `scan_page_alloc_ours` validates both pfn and spray-thread tid; raw scan layout type@i-8 / pid@i-4 / pfn@i / order@i+8 |
+| `nisu123f/dada-cve-AN00` | 5.10.236-android12-9 profile: `task->cred=0x780`, `real_cred=0x778`, `comm=0x790`, cred `copy_size=168`, `caps@40`, `user/user_ns/group_info @ 128/136/144`, `init_cred` and other offline addresses |
 
-## 本机 5.10 实测结论（PD2219 / 5.10.233-android12-9）
+## Local 5.10 test findings (PD2219 / 5.10.233-android12-9)
 
-- `unixstr` 的 8 KiB SOCK_STREAM 每次 send 就是一次 order-1 页分配，与
-  `posix_timers_cache`（264 B / 31 obj / 2 页）同阶；order-3 的是 DGRAM/kmalloc-8k 路径。
-- 反汇编得到的队列布局：task SCHED `rb_root@tsk+0x758`、`cached leftmost@tsk+0x760`；
-  `signal=*(tsk+0x7d8)`，signal SCHED `rb_root@sig+0x150`、`cached leftmost@sig+0x158`。
-- `de_thread()` 的 `posix_cpu_timers_exit()` 会 `rb_erase` 掉节点并把 cached leftmost 清零
-  —— 常规流程下 reap 时队列已空。
-- 只有 killer 在 exec 线程接管 leader pid 的瞬间（`tgkill(tgid, 原tid)` 返回 ESRCH）
-  立刻**整组** `SIGKILL`，节点才会留到 `release_task`（独立复现 6 次命中 2 次，
-  `__exit_signal` 时 `root == cached leftmost == 节点地址`）。
-- 现有 `ic_killer` 用 `sched_yield()` 轮询、只 `tgkill` leader —— 进不了窗口。
+- An 8 KiB SOCK_STREAM `unixstr` send is an order-1 page allocation each
+  time, the same order as `posix_timers_cache` (264 B / 31 obj / 2 pages);
+  order-3 comes from the DGRAM/kmalloc-8k path.
+- Queue layout from disassembly: task SCHED `rb_root@tsk+0x758`,
+  `cached leftmost@tsk+0x760`; `signal=*(tsk+0x7d8)`, signal SCHED
+  `rb_root@sig+0x150`, `cached leftmost@sig+0x158`.
+- `de_thread()`'s `posix_cpu_timers_exit()` `rb_erase`s the node and zeroes
+  the cached leftmost — in the normal flow the queue is already empty when
+  reaping.
+- Only when the killer, at the instant the exec thread takes over the leader
+  pid (`tgkill(tgid, original tid)` returns ESRCH), immediately `SIGKILL`s
+  the **whole group** does the node survive until `release_task`
+  (independently reproduced 6 times with 2 hits; at `__exit_signal`
+  `root == cached leftmost == node address`).
+- The existing `ic_killer` polls with `sched_yield()` and only `tgkill`s the
+  leader — it never enters the window.
 
-## 新架构（草案）
+## New architecture (draft)
 
-1. **probe / slide**：保留现有实现。
-2. **trace 校准**：raw 扫描改为按事件类型 + 字段布局匹配（S60 的
-   `type@i-8 / pid@i-4 / pfn@i / order@i+8`），不再依赖 call_site/ptr 成对；
-   目标是 5.10 上也能拿到 victim 的 V 与 pfn。
-3. **victim**：单次 fork；非 leader 线程建 `CLOCK_THREAD_CPUTIME_ID`(3600 s)；
-   线程在 execve 前挂起等放行（x200pro 的做法）。
-4. **killer**：忙轮询执行线程原 tid，ESRCH → 整组 `SIGKILL`；victim `setpgid(0,0)`。
-5. **两段式喷**：phase1 在放行 exec 前开始；free watcher 异核 drain exec 核
-   raw ring，见到 victim pfn 的 `mm_page_free` 立即放 phase2。
-6. **命中校验**：`scan_page_alloc_ours`（pfn + 喷线程 tid + order==1）；
-   未命中保持 zombie、重试（一次 boot 一次尝试）。
-7. **写原语**：零写（selinux_state-7 / panic_on_warn）与 cred 写
-   （`parent = task+0x780-8, tmp = init_cred`，再写 0x778）。
-8. **verify-and-repair**：每次写后用 `/proc/self/status` 的 Uid/Gid 四元组回读，
-   非 0 则 re-fire。
-9. **落地**：execve 拿真实 cred，起 rootd；KSU late-load 沿用现有交接脚本。
+1. **probe / slide**: keep the existing implementation.
+2. **Trace calibration**: the raw scan switches to matching by event type +
+   field layout (the S60 `type@i-8 / pid@i-4 / pfn@i / order@i+8`), no
+   longer relying on call_site/ptr pairs; the goal is to also get the
+   victim's V and pfn on 5.10.
+3. **Victim**: a single fork; a non-leader thread creates a
+   `CLOCK_THREAD_CPUTIME_ID` (3600 s); the thread suspends before execve
+   waiting for a go signal (x200pro's approach).
+4. **Killer**: busy-poll the exec thread's original tid; on ESRCH →
+   `SIGKILL` the whole group; victim does `setpgid(0,0)`.
+5. **Two-phase spray**: phase 1 starts before the exec go signal; a free
+   watcher on another core drains the exec core's raw ring and releases
+   phase 2 as soon as it sees the victim pfn's `mm_page_free`.
+6. **Hit verification**: `scan_page_alloc_ours` (pfn + spray-thread tid +
+   order==1); on a miss keep the zombie and retry (one attempt per boot).
+7. **Write primitive**: zero-writes (selinux_state-7 / panic_on_warn) and
+   cred writes (`parent = task+0x780-8, tmp = init_cred`, then write
+   0x778).
+8. **Verify-and-repair**: after every write, read back the Uid/Gid quadruple
+   from `/proc/self/status`; if non-zero, re-fire.
+9. **Landing**: execve with the real cred, start rootd; KSU late-load
+   reuses the existing handoff script.
 
-## 分支策略
+## Branch strategy
 
-- `main`：0.11.67，保持现状；
-- `refactor-98260`：本重构分支，**不合入 main**，验证通过后再另行决定。
+- `main`: 0.11.67, stays as is;
+- `refactor-98260`: this refactor branch, **not merged into main**; to be
+  decided separately once verified.
 
-## 里程碑 1（2026-11-06）：QEMU 上跑通 iQOO 12 6.1.145 全链
+## Milestone 1 (2026-11-06): full chain on QEMU, iQOO 12 6.1.145
 
-- `core/profiles.h` 落地：PD2571 与 `IC_PROFILE_QEMU_IQOO12` 两份；
-  `-DIC_PROFILE_<NAME>` 选择，`core/build.sh OUT profile` 直接构建。
-- QEMU 内核：`testdata/download_kernel.Image`
-  （6.1.145-android14-11-maybe-dirty，iQOO 12 16.2.11 boot.img）。
-- 从 Image 重新推导：kallsyms（selinux_state/panic_on_warn/root_user/
-  init_user_ns/ucounts/groups/TP）、`do_timer_create` 分配返回点
-  `0x1a12ac`、`dup_task_struct` 返回点 `0xad8d4`、BTF 结构体偏移。
-- **BTF 与运行内核不一致的教训**：`cred_jar/object_size` 实测 184
-  （`prepare_creds` 先 memcpy 0xb0 再补一个 qword），Image 里的 BTF 写
-  176（GKI 基线）。cache 尺寸以 `/sys/kernel/slab/*/object_size` 为准；
-  uid 仍在 +4、user 在 +0x80（`__sys_setuid` 反汇编核实）。
-- 最小 init `harness/qemu_core_init.c`：mount proc/sys/dev/tracefs，
-  可 `ic_uid0=1` 或掉到 uid 2000，跑 `/exploit` 并把 console 当日志。
-- 两个环境坑：NDK API24 静态二进制 TLS 对齐 8 → bionic 拒绝 exec，改用
-  API29；裸 initramfs 里 uid 2000 的 NOFILE 太小，socket 池（6144 fd）把
-  后续 pipe 挤成 EMFILE，init 在 drop 权限前把 NOFILE 抬到 65536。
-- 结果：`free_seen=1 burst hit=1` → reap → 零写 `cred+4` →
-  child `setuid(0)=0`，`resuid=0/0/2000`；仅 `/system/bin/sh` 在
-  initramfs 中不存在（exec errno=2）。
+- `core/profiles.h` landed: two entries, PD2571 and
+  `IC_PROFILE_QEMU_IQOO12`; selected via `-DIC_PROFILE_<NAME>`, built
+  directly by `core/build.sh OUT profile`.
+- QEMU kernel: `testdata/download_kernel.Image`
+  (6.1.145-android14-11-maybe-dirty, iQOO 12 16.2.11 boot.img).
+- Re-derived from the Image: kallsyms (selinux_state/panic_on_warn/
+  root_user/init_user_ns/ucounts/groups/TP), the `do_timer_create`
+  allocation return site `0x1a12ac`, the `dup_task_struct` return site
+  `0xad8d4`, BTF structure offsets.
+- **Lesson from BTF/runtime-kernel mismatch**: measured `cred_jar/
+  object_size` is 184 (`prepare_creds` first memcpy's 0xb0 then appends one
+  qword), while the Image's BTF says 176 (GKI baseline). Cache sizes follow
+  `/sys/kernel/slab/*/object_size`; uid is still at +4, user at +0x80
+  (verified by disassembling `__sys_setuid`).
+- Minimal init `harness/qemu_core_init.c`: mounts proc/sys/dev/tracefs, can
+  run as `ic_uid0=1` or drop to uid 2000, runs `/exploit` and uses the
+  console as the log.
+- Two environment traps: NDK API24 static binaries' 8-byte TLS alignment →
+  bionic refuses exec, switched to API29; in the bare initramfs, uid 2000's
+  NOFILE is too small, the socket pool (6144 fds) squeezes later pipes into
+  EMFILE, so the init raises NOFILE to 65536 before dropping privileges.
+- Result: `free_seen=1 burst hit=1` → reap → zero-write `cred+4` →
+  child `setuid(0)=0`, `resuid=0/0/2000`; only `/system/bin/sh` does not
+  exist in the initramfs (exec errno=2).
 
-## 里程碑 2（2026-11-06）：enforcing shell 域下同样跑通
+## Milestone 2 (2026-11-06): same chain under the enforcing shell domain
 
-- 同一份 `IC_PROFILE_QEMU_IQOO12` core，放进 shellboot harness（uid 2000，
-  `u:r:shell:s0`，policy 打开 enforcing），结果：
-  `free_seen=1 burst hit=1` → reap → 零写 `cred+4` →
-  child `setuid(0)=0`，`resuid=0/0/2000`。
-- harness init 之前把 tracefs 挂成 root-only，shell 域无法写 `enable`，
-  exploit 2 秒内就死在 page event discovery。`ic_tracefs_mount=1` 时改为
-  `chmod_tree` 全树 0666/0777（真机 init 用 gid=shell 达到同样效果）。
-- 日志通道：init 给 payload 的 env 里本来就有 `IC_LOG_PATH=/dev/ic-out`
-  （console 克隆，null_device 标签，shell 域可写），core 在启动时按
-  `IC_LOG_PATH`（无则 `/dev/ic-out`）重定向 stdout/stderr。
-- 唯一未走完的一步是 `/system/bin/sh` 在 initramfs 中不存在（ENOENT）；
-  真机上此步即 landing。
+- The same `IC_PROFILE_QEMU_IQOO12` core, placed into the shellboot harness
+  (uid 2000, `u:r:shell:s0`, policy enforcing), result:
+  `free_seen=1 burst hit=1` → reap → zero-write `cred+4` →
+  child `setuid(0)=0`, `resuid=0/0/2000`.
+- Previously the harness init mounted tracefs root-only, so the shell
+  domain could not write `enable` and the exploit died within 2 seconds at
+  page-event discovery. With `ic_tracefs_mount=1` it now `chmod_tree`s the
+  whole tree to 0666/0777 (the on-device init achieves the same with
+  gid=shell).
+- Log channel: the init's env for the payload already contains
+  `IC_LOG_PATH=/dev/ic-out` (a console clone with the null_device label,
+  writable from the shell domain); the core redirects stdout/stderr at
+  startup per `IC_LOG_PATH` (defaulting to `/dev/ic-out`).
+- The only step not completed is that `/system/bin/sh` does not exist in the
+  initramfs (ENOENT); on a real device this step is the landing.
 
-## 里程碑 3（2026-11-06）：命中校验 + 落地验证
+## Milestone 3 (2026-11-06): hit verification + landing proof
 
-- 发现 `free_seen=1 burst hit=1` 只证明喷页接住了，不能证明 reap 时的
-  `rb_erase` 真的走到了我们的 target（killer 输掉竞争时节点早被 de_thread
-  正常摘除，plant 仍报 ok 但一个字节都没写）。shell 路径现在每次 plant 后
-  读 `/proc/<child>/status` 的 Uid 回读校验，未命中就重发，最多 8 次；
-  只有校验通过才继续，避免"全绿但 uid 还是 2000"。
-- 修掉成功门槛的假阴性：`rep.euid` 是唤醒前的快照（恒为 2000），门槛改看
-  setuid(0) 之后的 `rep.reuid`。
-- 离线落地：initramfs 里放一个 `/system/bin/sh` 替身，在 enforcing 的
-  shell 域里拿到
-  `[qsh] uid=0 euid=0 resuid=0/0/0 ctx=u:r:shell:s0 ... ROOT_SHELL_OK`。
-  真机上这一步就是 exec 真实 shell / KSU 交接。
+- Realized that `free_seen=1 burst hit=1` only proves the spray caught the
+  page, not that the `rb_erase` during reap really reached our target (when
+  the killer loses the race the node has already been removed normally by
+  de_thread, the plant still reports ok but not a single byte was written).
+  The shell path now reads back the Uid from `/proc/<child>/status` after
+  every plant and re-fires on a miss, up to 8 times; it only continues once
+  verification passes, avoiding "all green but uid still 2000".
+- Fixed a false negative in the success gate: `rep.euid` is a snapshot from
+  before the wake-up (always 2000); the gate now looks at `rep.reuid` after
+  setuid(0).
+- Offline landing: placed a stand-in `/system/bin/sh` in the initramfs and,
+  in the enforcing shell domain, achieved
+  `[qsh] uid=0 euid=0 resuid=0/0/0 ctx=u:r:shell:s0 ... ROOT_SHELL_OK`.
+  On a real device this step is exec'ing the real shell / the KSU handoff.
 
-## 里程碑 4（2026-11-06）：fake-cred 路径的布局差异与两级回读
+## Milestone 4 (2026-11-06): fake-cred layout differences and two-level read-back
 
-- 本内核 `struct cred` 以 4 字节 `usage` 开头（`__sys_setuid` 的写点
-  0x4/0xc/0x14/0x1c、`cap_capable` 的 cap_effective@0x38、`commit_creds`
-  的 user@0x80 / user_ns@0x88 / ucounts@0x90 都与之吻合），而 PD2571 是
-  8 字节 usage（uid@8、caps@0x2c）。
-- fake cred 直接坐在 timer 节点上：节点 `__rb_parent_color`（写 V+0x78）
-  与本布局的 uid 重叠，未命中时 child 读到 uid = 指针高半 = -128；命中后
-  uid 是 0xffffff80，与调用者 uid 可区分。
-- 因此 fake_cred 与 fake_uid 两级都改为回读 `/proc/<child>/status` 的
-  Uid 再决定是否重发（各最多 8 次），fake_cred 以"uid 不再是调用者 uid"
-  作为指针替换成功的判据。
-- 离线 fake 全链尚未稳定跑绿（shell 路径已稳定），QEMU 下每次 attempt
-  约 40 s，需要更长预算；真机不受这个吞吐限制。
+- This kernel's `struct cred` starts with a 4-byte `usage` (`__sys_setuid`'s
+  write points 0x4/0xc/0x14/0x1c, `cap_capable`'s cap_effective@0x38,
+  `commit_creds`'s user@0x80 / user_ns@0x88 / ucounts@0x90 all match),
+  whereas PD2571 has 8-byte usage (uid@8, caps@0x2c).
+- The fake cred sits directly on the timer node: the node's
+  `__rb_parent_color` (writes V+0x78) overlaps this layout's uid, so on a
+  miss the child reads uid = high half of the pointer = -128; after a hit
+  the uid is 0xffffff80, distinguishable from the caller's uid.
+- Both fake_cred and fake_uid levels therefore switched to reading back the
+  Uid from `/proc/<child>/status` before deciding to re-fire (8 attempts
+  each); fake_cred treats "uid is no longer the caller's uid" as proof the
+  pointer replacement succeeded.
+- The offline fake full chain is not stably green yet (the shell path is
+  stable); each attempt takes about 40 s under QEMU and needs a longer
+  budget; real devices are not bound by this throughput limit.
 
-## 里程碑 5（2026-11-06）：fake/KSU 路径离线跑通
+## Milestone 5 (2026-11-06): fake/KSU path green offline
 
-- 之前 fake_cred 报 8/8 miss 是**校验看错了指针**：`/proc/<pid>/status` 的
-  Uid 来自 `task->real_cred`（0x830），fake plant 换的是 `task->cred`
-  （0x838）；fork 归一化之前两者分叉，回读永远看到 2000。
-- 改为 peek 协议：wait_child_main 在 fake/fullshell/diag 模式下每收到 1
-  字节就回报一次 `getuid()/geteuid()`，只有收到 `G` 才继续执行；父进程用
-  `poke_child()` 读取。fake_cred 以“uid != 调用者 uid”判定替换成功，
-  fake_uid 以 uid==0 判定零写落地。
-- 新增 fake_euid 阶段：fake 节点 `rb_left` 与 cred+0x10（sgid/euid）重叠，
-  euid 残留 target 指针高半（0xffffff80），需再零写一次 fc.A+0x14。
-- 结尾的 `G` 也会产生一个 8 字节 peek 回包，先 poll/read 掉，否则会和
-  child report 粘连导致 magic 校验失败。
-- QEMU 6.1.145 + enforcing shell 域结果：
-  `fake cred A=...` → `fake_uid` → `fake_euid` 均一次通过 →
-  child `uid=0 euid=0` → `/system/bin/sh` 替身
-  `[qsh] uid=0 euid=0 resuid=0/0/0 ... ROOT_SHELL_OK`。
+- The earlier fake_cred 8/8 misses were **verification looking at the wrong
+  pointer**: `/proc/<pid>/status`'s Uid comes from `task->real_cred`
+  (0x830), but the fake plant swaps `task->cred` (0x838); the two fork
+  apart before fork normalization, so read-back always saw 2000.
+- Switched to a peek protocol: in fake/fullshell/diag modes,
+  wait_child_main reports `getuid()/geteuid()` once per byte received and
+  only continues after receiving `G`; the parent reads it via
+  `poke_child()`. fake_cred treats "uid != caller uid" as replacement
+  success; fake_uid treats uid==0 as the zero-write landing.
+- New fake_euid stage: the fake node's `rb_left` overlaps cred+0x10
+  (sgid/euid), the euid is left with the target pointer's high half
+  (0xffffff80), requiring one more zero-write at fc.A+0x14.
+- The trailing `G` also produces an 8-byte peek reply that must be
+  poll/read away first, or it sticks to the child report and fails the
+  magic check.
+- QEMU 6.1.145 + enforcing shell domain result:
+  `fake cred A=...` → `fake_uid` → `fake_euid`, all first-try →
+  child `uid=0 euid=0` → stand-in `/system/bin/sh`
+  `[qsh] uid=0 euid=0 resuid=0/0/0 ... ROOT_SHELL_OK`.

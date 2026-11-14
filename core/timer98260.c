@@ -2491,7 +2491,7 @@ static int wait_child_main(const char *mode)
 
         /* The App passes its payload command through PAYLOAD_CMD even
          * without a KSU manager (proof command, or "sh safemode.sh ; cmd"
-         * when 安全模式 is checked).  Run it here instead of the hardcoded
+         * when safe mode is checked).  Run it here instead of the hardcoded
          * proof so safe mode works in the shell path too. */
         {
             const char *pc = getenv("PAYLOAD_CMD");
@@ -2529,7 +2529,8 @@ static int wait_child_main(const char *mode)
 }
 
 
-/* 安全探测：只 fork/创建定时器并读 trace，打印真实分配调用点，不触发 UAF */
+/* Safe probe: only fork/create a timer and read the trace, printing the real
+ * allocation call site, without triggering the UAF. */
 static void dump_sites(void)
 {
     unsigned char *raw = malloc(48u << 20);

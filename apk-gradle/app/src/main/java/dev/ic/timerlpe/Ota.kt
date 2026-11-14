@@ -51,13 +51,13 @@ internal class ZipReader(private val ch: FileChannel, private val fileSize: Long
             val loc = readAt(ch, eocdPos - 20, 20)
             require(loc[0] == 0x50.toByte() && loc[1] == 0x4b.toByte() &&
                 loc[2] == 0x06.toByte() && loc[3] == 0x07.toByte()) {
-                "损坏的 ZIP64 定位记录"
+                "Corrupted ZIP64 locator record"
             }
             val e64off = u64(loc, 8)
             val e64 = readAt(ch, e64off, 56)
             require(e64[0] == 0x50.toByte() && e64[1] == 0x4b.toByte() &&
                 e64[2] == 0x06.toByte() && e64[3] == 0x06.toByte()) {
-                "损坏的 ZIP64 目录记录"
+                "Corrupted ZIP64 directory record"
             }
             count = u64(e64, 32)
             cdSize = u64(e64, 40)
@@ -70,7 +70,7 @@ internal class ZipReader(private val ch: FileChannel, private val fileSize: Long
         while (i + 46 <= cd.size && out.size < count) {
             require(cd[i] == 0x50.toByte() && cd[i + 1] == 0x4b.toByte() &&
                 cd[i + 2] == 0x01.toByte() && cd[i + 3] == 0x02.toByte()) {
-                "损坏的 ZIP 中央目录"
+                "Corrupted ZIP central directory"
             }
             val method = u16(cd, i + 10)
             var comp = u32(cd, i + 20)
@@ -92,7 +92,7 @@ internal class ZipReader(private val ch: FileChannel, private val fileSize: Long
             val lh = readAt(ch, localOff, 30)
             require(lh[0] == 0x50.toByte() && lh[1] == 0x4b.toByte() &&
                 lh[2] == 0x03.toByte() && lh[3] == 0x04.toByte()) {
-                "损坏的 ZIP 本地头: $name"
+                "Corrupted ZIP local header: $name"
             }
             val dataOff = localOff + 30 + u16(lh, 26) + u16(lh, 28)
             out.add(ZipEntryInfo(name, method, comp, uncomp, dataOff))
@@ -114,7 +114,7 @@ internal class ZipReader(private val ch: FileChannel, private val fileSize: Long
             }
             i--
         }
-        throw IllegalStateException("不是有效的 ZIP/OTA 包（找不到 EOCD）")
+        throw IllegalStateException("Not a valid ZIP/OTA package (EOCD not found)")
     }
 
     private fun zip64Extra(extra: ByteArray): List<Long>? {
@@ -193,16 +193,16 @@ internal object BootExtractor {
     /** Parses the manifest and returns the boot partition plan. */
     fun manifest(ch: FileChannel, base: Long): PayloadBoot {
         val hdr = readAt(ch, base, 24)
-        require(hdr.size == 24) { "payload.bin 头不完整" }
+        require(hdr.size == 24) { "Incomplete payload.bin header" }
         require(
             hdr[0] == 'C'.code.toByte() && hdr[1] == 'r'.code.toByte() &&
                 hdr[2] == 'A'.code.toByte() && hdr[3] == 'U'.code.toByte()
-        ) { "不是 Android update payload（magic 错误）" }
+        ) { "Not an Android update payload (bad magic)" }
         val version = beU64(hdr, 4)
         val msize = beU64(hdr, 12).toInt()
         val sig = beU32(hdr, 20).toInt()
-        require(version == 2L) { "不支持的 payload 版本 $version" }
-        require(msize in 1..(64 shl 20)) { "payload manifest 大小异常: $msize" }
+        require(version == 2L) { "Unsupported payload version $version" }
+        require(msize in 1..(64 shl 20)) { "Abnormal payload manifest size: $msize" }
         val man = readAt(ch, base + 24, msize)
         val dataStart = base + 24 + msize + sig
 
@@ -218,7 +218,7 @@ internal object BootExtractor {
                 ?.bytes?.toString(Charsets.UTF_8)
             if (name == "boot") chosen = part
         }
-        requireNotNull(chosen) { "全量包里找不到 boot 分区" }
+        requireNotNull(chosen) { "boot partition not found in the OTA package" }
 
         var size = 0L
         val ops = ArrayList<BootOp>()
@@ -246,8 +246,8 @@ internal object BootExtractor {
                 ops.add(BootOp(type, off, len, exts))
             }
         }
-        require(size > 0) { "boot 分区大小未知" }
-        require(ops.isNotEmpty()) { "boot 分区没有操作记录" }
+        require(size > 0) { "boot partition size unknown" }
+        require(ops.isNotEmpty()) { "boot partition has no operation records" }
         return PayloadBoot(size, blockSize, ops)
     }
 
@@ -263,7 +263,7 @@ internal object BootExtractor {
         sink: (offset: Long, bytes: ByteArray, from: Int, len: Int) -> Unit,
     ) {
         val hdr = readAt(ch, base, 24)
-        require(hdr.size == 24) { "payload 头不完整" }
+        require(hdr.size == 24) { "Incomplete payload header" }
         val msize = beU64(hdr, 12)
         val sig = beU32(hdr, 20)
         val dataStart = base + 24 + msize + sig
@@ -275,7 +275,7 @@ internal object BootExtractor {
                 return@forEachIndexed
             }
             val blob = readAt(ch, dataStart + op.dataOffset, op.dataLength.toInt())
-            require(blob.size.toLong() == op.dataLength) { "op $idx 读取不完整" }
+            require(blob.size.toLong() == op.dataLength) { "op $idx read incomplete" }
             log(
                 "[ota] op $idx type=${op.type} data=${blob.size} head=" +
                     blob.take(4).joinToString("") { "%02x".format(it) }
@@ -305,7 +305,7 @@ internal object BootExtractor {
                             }
                             if (extTotal > 0 && out.size.toLong() < extTotal) {
                                 throw IllegalStateException(
-                                    "zstd 解压不完整（${out.size}/$extTotal bytes），包可能损坏"
+                                    "zstd decompression incomplete (${out.size}/$extTotal bytes), package may be corrupted"
                                 )
                             }
                             out
@@ -323,7 +323,7 @@ internal object BootExtractor {
                     val out = XzDecoder.decode(blob, maxOut)
                     if (extTotal > 0 && out.size.toLong() < extTotal) {
                         throw IllegalStateException(
-                            "xz 解压不完整（${out.size}/$extTotal bytes），包可能损坏"
+                            "xz decompression incomplete (${out.size}/$extTotal bytes), package may be corrupted"
                         )
                     }
                     out
@@ -335,12 +335,12 @@ internal object BootExtractor {
                     }
                     if (extTotal > 0 && out.size.toLong() < extTotal) {
                         throw IllegalStateException(
-                            "bzip2 解压不完整（${out.size}/$extTotal bytes），包可能损坏"
+                            "bzip2 decompression incomplete (${out.size}/$extTotal bytes), package may be corrupted"
                         )
                     }
                     out
                 }
-                else -> throw IllegalStateException("不支持的 payload 操作类型 ${op.type}")
+                else -> throw IllegalStateException("Unsupported payload operation type ${op.type}")
             }
             val exts = op.extents.ifEmpty {
                 listOf((cursor / plan.blockSize) to ((raw.size + plan.blockSize - 1) / plan.blockSize))
@@ -358,7 +358,7 @@ internal object BootExtractor {
             }
             log("[ota] op $idx type=${op.type} ${raw.size} bytes -> ${exts.firstOrNull()}")
         }
-        log("[ota] boot 解出 ${plan.size} bytes")
+        log("[ota] boot extracted ${plan.size} bytes")
     }
 
     private fun isZstd(b: ByteArray): Boolean =
@@ -404,7 +404,7 @@ internal object BootExtractor {
                 v = v or ((c and 0x7f).toLong() shl sh)
                 sh += 7
                 if (c and 0x80 == 0) break
-                if (i >= b.size) throw IllegalStateException("payload manifest 截断")
+                if (i >= b.size) throw IllegalStateException("payload manifest truncated")
             }
             val num = (v ushr 3).toInt()
             when (v and 7) {
@@ -435,7 +435,7 @@ internal object BootExtractor {
                         if (c and 0x80 == 0) break
                     }
                     val n = l.toInt()
-                    if (i + n > b.size) throw IllegalStateException("payload manifest 越界")
+                    if (i + n > b.size) throw IllegalStateException("payload manifest out of bounds")
                     out.add(PbField(num, 2, 0, b.copyOfRange(i, i + n)))
                     i += n
                 }
@@ -443,7 +443,7 @@ internal object BootExtractor {
                     i += 4
                     out.add(PbField(num, 5, 0, null))
                 }
-                else -> throw IllegalStateException("未知的 protobuf wire type")
+                else -> throw IllegalStateException("Unknown protobuf wire type")
             }
         }
         return out

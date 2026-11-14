@@ -164,9 +164,9 @@ class MainActivity : ComponentActivity() {
     private var authorized by mutableStateOf(false)
     private var binderReady by mutableStateOf(false)
     private var bound by mutableStateOf(false)
-    private var kernelVersion by mutableStateOf("未知")
-    private var deviceModel by mutableStateOf("未知")
-    private var selinuxText by mutableStateOf("未知")
+    private var kernelVersion by mutableStateOf("Unknown")
+    private var deviceModel by mutableStateOf("Unknown")
+    private var selinuxText by mutableStateOf("Unknown")
     private var ksuIndex by mutableStateOf(0)
     private var safeMode by mutableStateOf(false)
     private var tab by mutableStateOf(AppTab.HOME)
@@ -186,7 +186,7 @@ class MainActivity : ComponentActivity() {
     private var polling = false
     private var runStamp = ""
     /** Which step of the boot.img parser was running when it failed. */
-    private var parseStage = "读取文件"
+    private var parseStage = "Reading file"
 
     private val prefs by lazy { getSharedPreferences("ic_timer", MODE_PRIVATE) }
 
@@ -194,7 +194,7 @@ class MainActivity : ComponentActivity() {
         if (code == REQ_SHIZUKU) {
             authorized = result == PackageManager.PERMISSION_GRANTED
             addLog(
-                if (authorized) "Shizuku 权限: 已允许" else "Shizuku 权限: 被拒绝($result)"
+                if (authorized) "Shizuku permission: granted" else "Shizuku permission: denied($result)"
             )
             if (authorized) bindUserService()
             refreshAuth()
@@ -215,7 +215,7 @@ class MainActivity : ComponentActivity() {
 
     private val parsePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) {
-            addLog("[解析偏移] 已取消")
+            addLog("[parse offsets] cancelled")
             return@registerForActivityResult
         }
         runCatching {
@@ -232,7 +232,7 @@ class MainActivity : ComponentActivity() {
             bound = true
             lifecycleScope.launch {
                 val id = withContext(Dispatchers.IO) {
-                    runCatching { service?.identity() }.getOrNull() ?: "读取身份失败"
+                    runCatching { service?.identity() }.getOrNull() ?: "Failed to read identity"
                 }
                 val dev = withContext(Dispatchers.IO) {
                     runCatching {
@@ -243,7 +243,7 @@ class MainActivity : ComponentActivity() {
                     }.getOrNull() ?: ""
                 }
                 addLog("[service] $id")
-                if (dev.isNotBlank()) addLog("[设备] $dev")
+                if (dev.isNotBlank()) addLog("[device] $dev")
                 refreshStaticState()
             }
         }
@@ -277,7 +277,7 @@ class MainActivity : ComponentActivity() {
         refreshAuth()
         ksuIndex = prefs.getInt("ksu_index", 0).coerceIn(0, KSU_NAMES.lastIndex)
         safeMode = prefs.getBoolean("safe_mode", false)
-        kernelVersion = runCatching { android.system.Os.uname().release }.getOrDefault("未知")
+        kernelVersion = runCatching { android.system.Os.uname().release }.getOrDefault("Unknown")
         deviceModel = resolveDeviceName()
         refreshStaticState()
         checkDeviceAndKernel()
@@ -414,17 +414,17 @@ class MainActivity : ComponentActivity() {
                     item {
                         TextButton(
                             text = when {
-                                busy -> runStage.ifBlank { "运行中…" }
+                                busy -> runStage.ifBlank { "Running..." }
                                 runStage.isNotEmpty() -> runStage
-                                !binderReady -> "Shizuku 未运行（点击打开）"
-                                !authorized -> "授权 Shizuku"
-                                else -> "一键越狱"
+                                !binderReady -> "Shizuku not running (tap to open)"
+                                !authorized -> "Authorize Shizuku"
+                                else -> "One-tap jailbreak"
                             },
                             onClick = {
                                 if (busy) return@TextButton
                                 when {
                                     !binderReady -> {
-                                        addLog("先启动 Shizuku（无线调试 / ADB），不能用 root 启动")
+                                        addLog("Start Shizuku first (wireless debugging / ADB); do not start it as root")
                                         openManager()
                                     }
                                     !authorized -> Shizuku.requestPermission(REQ_SHIZUKU)
@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 WindowDropdownPreference(
-                                    title = "ROOT管理器",
+                                    title = "ROOT manager",
                                     items = KSU_NAMES,
                                     selectedIndex = ksuIndex,
                                     startAction = {
@@ -457,7 +457,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 SwitchPreference(
-                                    title = "安全模式",
+                                    title = "Safe mode",
                                     checked = safeMode,
                                     onCheckedChange = {
                                         safeMode = it
@@ -474,8 +474,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "使用手册",
-                                    summary = "规则、支持机型与常见问题",
+                                    title = "User manual",
+                                    summary = "Rules, supported models and FAQ",
                                     onClick = { showManual = true },
                                     startAction = {
                                         Icon(
@@ -488,8 +488,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "支持开发者",
-                                    summary = "赞赏二维码",
+                                    title = "Support the developer",
+                                    summary = "Donation QR code",
                                     onClick = { showDonate = true },
                                     startAction = {
                                         Icon(
@@ -507,8 +507,8 @@ class MainActivity : ComponentActivity() {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 ArrowPreference(
-                                    title = "解析偏移",
-                                    summary = "从全量包或 boot.img 解析偏移",
+                                    title = "Parse offsets",
+                                    summary = "Parse offsets from a full package or boot.img",
                                     onClick = { parseOffsets() },
                                     startAction = {
                                         Icon(
@@ -521,8 +521,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "清理",
-                                    summary = "清理本工具临时文件 / 清理 KSU",
+                                    title = "Clean up",
+                                    summary = "Clean this tool's temp files / clean KSU",
                                     onClick = { cleanup() },
                                     startAction = {
                                         Icon(
@@ -535,8 +535,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "诊断",
-                                    summary = "输出设备身份、符号表与管理器状态",
+                                    title = "Diagnostics",
+                                    summary = "Print device identity, symbol tables and manager status",
                                     onClick = { diag() },
                                     startAction = {
                                         Icon(
@@ -553,7 +553,7 @@ class MainActivity : ComponentActivity() {
                     item {
                         InfoCard(
                             kernelVersion = kernelVersion,
-                            exploitLabel = "CVE-2026-98260（POSIX CPU timer UAF）",
+                            exploitLabel = "CVE-2026-98260 (POSIX CPU timer UAF)",
                             deviceModel = deviceModel,
                             fingerprint = Build.FINGERPRINT,
                             selinux = selinuxText,
@@ -601,14 +601,14 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Column {
                         Text(
-                            text = if (granted) "Shizuku 已连接" else "Shizuku 未连接",
+                            text = if (granted) "Shizuku connected" else "Shizuku not connected",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = if (granted) "shell 用户服务已就绪，可尝试越狱"
-                            else "请用无线调试 / ADB 启动 Shizuku 并授权",
+                            text = if (granted) "Shell user service ready; jailbreak can be attempted"
+                            else "Start and authorize Shizuku via wireless debugging / ADB",
                             fontSize = 15.sp
                         )
                     }
@@ -666,11 +666,11 @@ class MainActivity : ComponentActivity() {
     ) {
         Card(modifier = modifier) {
             Column(modifier = Modifier.padding(16.dp)) {
-                InfoText(Icons.Filled.DeveloperBoard, "内核版本", kernelVersion)
-                InfoText(Icons.Filled.BugReport, "漏洞利用方式", exploitLabel)
-                InfoText(Icons.Filled.Smartphone, "设备型号", deviceModel)
-                InfoText(Icons.Filled.Fingerprint, "系统指纹", fingerprint)
-                InfoText(Icons.Filled.Security, "SELinux 状态", selinux, bottomPadding = 0.dp)
+                InfoText(Icons.Filled.DeveloperBoard, "Kernel version", kernelVersion)
+                InfoText(Icons.Filled.BugReport, "Exploit method", exploitLabel)
+                InfoText(Icons.Filled.Smartphone, "Device model", deviceModel)
+                InfoText(Icons.Filled.Fingerprint, "OS fingerprint", fingerprint)
+                InfoText(Icons.Filled.Security, "SELinux status", selinux, bottomPadding = 0.dp)
             }
         }
     }
@@ -685,13 +685,13 @@ class MainActivity : ComponentActivity() {
             topBar = {
                 BlurredBar(backdrop = backdrop) {
                     TopAppBar(
-                        title = "日志",
+                        title = "Log",
                         color = Color.Transparent,
                         navigationIcon = {
                             IconButton(onClick = { logs.clear() }) {
                                 Icon(
                                     imageVector = COUIIcons.Notes,
-                                    contentDescription = "清空日志",
+                                    contentDescription = "Clear log",
                                     tint = COUITheme.colorScheme.onSurface
                                 )
                             }
@@ -707,7 +707,7 @@ class MainActivity : ComponentActivity() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "暂无日志",
+                        text = "No log yet",
                         fontSize = 14.sp,
                         color = COUITheme.colorScheme.onSurfaceVariantSummary
                     )
@@ -749,7 +749,7 @@ class MainActivity : ComponentActivity() {
         val markdown = remember {
             runCatching {
                 context.assets.open("manual.md").bufferedReader().use { it.readText() }
-            }.getOrElse { "# 使用手册\n\n手册内容读取失败。" }
+            }.getOrElse { "# User Manual\n\nFailed to read the manual." }
         }
         val blocks = remember(markdown) { parseManualMarkdown(markdown) }
         Scaffold(popupHost = { }) { inner ->
@@ -821,7 +821,7 @@ class MainActivity : ComponentActivity() {
             contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Top),
             topBar = {
                 BlurredBar(backdrop = backdrop) {
-                    TopAppBar(title = "关于", color = Color.Transparent)
+                    TopAppBar(title = "About", color = Color.Transparent)
                 }
             },
             popupHost = { }
@@ -861,7 +861,7 @@ class MainActivity : ComponentActivity() {
                                     color = COUITheme.colorScheme.onSurfaceVariantSummary
                                 )
                                 Text(
-                                    text = "本软件免费开源，作者酷安@散花神木",
+                                    text = "This software is free and open source, by Coolapk @散花神木 (Sanhua Shenmu)",
                                     fontSize = 13.sp,
                                     color = COUITheme.colorScheme.onSurfaceVariantSummary
                                 )
@@ -872,8 +872,8 @@ class MainActivity : ComponentActivity() {
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 ArrowPreference(
-                                    title = "查看源代码",
-                                    summary = "在 GitHub 上查看源代码",
+                                    title = "View source code",
+                                    summary = "View the source on GitHub",
                                     onClick = { uriHandler.openUri(PROJECT_URL) },
                                     startAction = {
                                         Icon(
@@ -886,8 +886,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "加入社区",
-                                    summary = "加入 QQ 群",
+                                    title = "Join the community",
+                                    summary = "Join the QQ group",
                                     onClick = { uriHandler.openUri(COMMUNITY_URL) },
                                     startAction = {
                                         Icon(
@@ -900,8 +900,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "问题反馈",
-                                    summary = "在 GitHub Issues 提交问题",
+                                    title = "Feedback",
+                                    summary = "Report issues on GitHub Issues",
                                     onClick = { uriHandler.openUri("$PROJECT_URL/issues") },
                                     startAction = {
                                         Icon(
@@ -914,8 +914,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "支持开发者",
-                                    summary = "赞赏二维码",
+                                    title = "Support the developer",
+                                    summary = "Donation QR code",
                                     onClick = { showDonate = true },
                                     startAction = {
                                         Icon(
@@ -928,8 +928,8 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "开放源代码许可",
-                                    summary = "本项目与所参考开源项目的许可证信息",
+                                    title = "Open source licenses",
+                                    summary = "Licenses of this project and the open-source projects it references",
                                     onClick = onLicenses,
                                     startAction = {
                                         Icon(
@@ -952,17 +952,17 @@ class MainActivity : ComponentActivity() {
     private fun DonateDialog(show: Boolean, onDismiss: () -> Unit) {
         OverlayDialog(
             show = show,
-            title = "支持开发者",
+            title = "Support the developer",
             onDismissRequest = onDismiss,
             content = {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
-                    DonateQr(label = "赞赏码", assetPath = "donate.png", modifier = Modifier.fillMaxWidth())
+                    DonateQr(label = "Donation QR", assetPath = "donate.png", modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "关闭",
+                        text = "Close",
                         onClick = onDismiss,
                         colors = ButtonDefaults.textButtonColorsPrimary()
                     )
@@ -1012,13 +1012,13 @@ class MainActivity : ComponentActivity() {
             topBar = {
                 BlurredBar(backdrop = backdrop) {
                     TopAppBar(
-                        title = "开放源代码许可",
+                        title = "Open source licenses",
                         color = Color.Transparent,
                         navigationIcon = {
                             IconButton(onClick = onBack) {
                                 Icon(
                                     imageVector = COUIIcons.Back,
-                                    contentDescription = "返回",
+                                    contentDescription = "Back",
                                     tint = COUITheme.colorScheme.onSurface
                                 )
                             }
@@ -1043,7 +1043,7 @@ class MainActivity : ComponentActivity() {
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item { SectionLabel("本项目") }
+                    item { SectionLabel("This project") }
                     items(licenseItems) { item ->
                         LicenseCard(item) { onSelect(item) }
                     }
@@ -1156,7 +1156,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             if (contents.isEmpty()) {
-                                Text("未声明许可证文本", fontSize = 13.sp)
+                                Text("No license text declared", fontSize = 13.sp)
                             }
                             contents.forEach { (license, body) ->
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1167,7 +1167,7 @@ class MainActivity : ComponentActivity() {
                                         color = COUITheme.colorScheme.primary
                                     )
                                     Text(
-                                        text = body ?: "未内置许可证文本",
+                                        text = body ?: "License text not bundled",
                                         fontSize = 12.sp,
                                         fontFamily = FontFamily.Monospace
                                     )
@@ -1180,13 +1180,13 @@ class MainActivity : ComponentActivity() {
                         display.website?.let { url ->
                             TextButton(
                                 modifier = Modifier.weight(1f),
-                                text = "访问主页",
+                                text = "Visit homepage",
                                 onClick = { uriHandler.openUri(url) }
                             )
                         }
                         TextButton(
                             modifier = Modifier.weight(1f),
-                            text = "关闭",
+                            text = "Close",
                             onClick = onDismiss,
                             colors = ButtonDefaults.textButtonColorsPrimary()
                         )
@@ -1219,9 +1219,9 @@ class MainActivity : ComponentActivity() {
         val s = service
         if (s != null) return s
         val msg = when {
-            !binderReady -> "Shizuku 未运行：请先用无线调试 / ADB 启动 Shizuku"
-            !authorized -> "Shizuku 未授权：请先允许授权"
-            else -> "用户服务未绑定：请稍候或重新打开应用"
+            !binderReady -> "Shizuku not running: start Shizuku first via wireless debugging / ADB"
+            !authorized -> "Shizuku not authorized: grant permission first"
+            else -> "User service not bound: wait a moment or reopen the app"
         }
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         addLog("[$action] $msg")
@@ -1245,8 +1245,8 @@ class MainActivity : ComponentActivity() {
                 .tag("ic-lpe")
                 .processNameSuffix(":icsvc")
             Shizuku.bindUserService(args, conn)
-            addLog("正在绑定 shell 用户服务…")
-        }.onFailure { addLog("绑定失败：\n" + explainError(it, "绑定 Shizuku 用户服务")) }
+            addLog("Binding the shell user service...")
+        }.onFailure { addLog("Binding failed:\n" + explainError(it, "binding the Shizuku user service")) }
     }
 
     private fun openManager() {
@@ -1255,7 +1255,7 @@ class MainActivity : ComponentActivity() {
         if (intent != null) {
             runCatching { startActivity(intent) }
         } else {
-            Toast.makeText(this, "未安装 Shizuku", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Shizuku not installed", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1280,7 +1280,7 @@ class MainActivity : ComponentActivity() {
         "enforcing" -> "enforcing"
         "permissive" -> "permissive"
         "disabled" -> "disabled"
-        "" -> "未知"
+        "" -> "Unknown"
         else -> raw.trim()
     }
 
@@ -1297,20 +1297,20 @@ class MainActivity : ComponentActivity() {
         val kernelOk = kernelVersion.contains("6.1.145")
         if (isVivo && kernelOk) return
         val reasons = buildList {
-            if (!isVivo) add("不是 vivo / iQOO 设备（${brand.ifBlank { manufacturer }}）")
-            if (!kernelOk) add("内核不是 6.1.145（$kernelVersion）")
+            if (!isVivo) add("Not a vivo / iQOO device (${brand.ifBlank { manufacturer }})")
+            if (!kernelOk) add("Kernel is not 6.1.145 ($kernelVersion)")
         }
         notice = Notice(
-            "设备提示",
+            "Device notice",
             buildString {
-                append("本工具只适配 vivo / iQOO 且内核为 6.1.145 的机型。\n\n")
-                append("检测到：\n· ")
+                append("This tool only fits vivo / iQOO models with kernel 6.1.145.\n\n")
+                append("Detected:\n· ")
                 append(reasons.joinToString("\n· "))
-                append("\n\n仍然可以继续使用，但提权大概率无效，")
-                append("也可能因为错误的地址写入导致设备异常。请自行确认风险。")
+                append("\n\nYou can still continue, but privilege escalation will most likely fail, ")
+                append("and writes to wrong addresses may leave the device misbehaving. Confirm the risk yourself.")
             }
         )
-        addLog("[设备] 不在适配范围: ${reasons.joinToString("；")}")
+        addLog("[device] out of scope: ${reasons.joinToString("; ")}")
     }
 
     private fun resolveDeviceName(): String = runCatching {
@@ -1318,8 +1318,8 @@ class MainActivity : ComponentActivity() {
         val model = getSystemProperty("ro.product.model")
         val device = getSystemProperty("ro.product.device")
         listOf(brand, model, device).filter { it.isNotBlank() }
-            .joinToString(" ").ifBlank { "未知" }
-    }.getOrDefault("未知")
+            .joinToString(" ").ifBlank { "Unknown" }
+    }.getOrDefault("Unknown")
 
     private fun getSystemProperty(key: String): String = try {
         val cls = Class.forName("android.os.SystemProperties")
@@ -1355,7 +1355,7 @@ class MainActivity : ComponentActivity() {
             )
 
     private fun runCore() {
-        val s = requireService("运行") ?: return
+        val s = requireService("run") ?: return
         val selectedPkg = KSU_PKGS[ksuIndex]
         val selectedName = KSU_NAMES[ksuIndex]
         val safe = safeMode
@@ -1381,8 +1381,8 @@ class MainActivity : ComponentActivity() {
                     val id0 = s.identity()
                     if (!id0.startsWith("uid=2000 ") || !id0.contains("ctx=u:r:shell")) {
                         addLogOnMain(
-                            "[run] 拒绝执行：用户服务身份不是 shell\n$id0\n" +
-                                "请用 ADB / 无线调试启动 Shizuku（不要用 root 启动），再点“授权 Shizuku”。"
+                            "[run] refusing to run: the user service identity is not shell\n$id0\n" +
+                                "Start Shizuku via ADB / wireless debugging (not as root), then tap \"Authorize Shizuku\"."
                         )
                         return@withContext true
                     }
@@ -1403,8 +1403,8 @@ class MainActivity : ComponentActivity() {
                     val ksuPkg = if (selectedPkg.isEmpty() || selectedOk) selectedPkg else ""
                     if (selectedPkg.isNotEmpty() && !selectedOk) {
                         addLogOnMain(
-                            "[run] 所选管理器「$selectedName」($selectedPkg) 未安装，" +
-                                "自动改用已安装的管理器"
+                            "[run] the selected manager \"$selectedName\" ($selectedPkg) is not installed, " +
+                                "falling back to an installed manager automatically"
                         )
                     }
                     val payload = "[ -x /data/local/tmp/ksud_next ] || echo ksud_next-missing; /data/local/tmp/ksud_next late-load --kmi android14-6.1 --allow-shell --package-name kqvdie.zeykvw.hpbcyd 2>&1; $proof"
@@ -1431,16 +1431,16 @@ class MainActivity : ComponentActivity() {
                     val haveFake = Regex("have_fake=(\\d)").find(info)?.groupValues?.get(1)
                     if (haveCore == null) {
                         postUi {
-                            offsetPrompt = "无法确认当前版本的内核偏移（内核可能不受支持）。\n\n" +
-                                "请点「解析偏移」，选择该机型的 boot.img 或全量包生成符号表。"
+                            offsetPrompt = "Cannot confirm the kernel offsets for the current version (the kernel may be unsupported).\n\n" +
+                                "Tap \"Parse offsets\" and pick this model's boot.img or full package to generate the symbol table."
                         }
                         return@withContext true
                     }
                     if (haveCore != "1" || haveFake != "1") {
                         postUi {
-                            offsetPrompt = "没有当前版本的偏移，请手动解析偏移。\n\n" +
-                                "点「解析偏移」选择该机型的 boot.img 或全量包，生成 " +
-                                "/data/local/tmp/ic-syms.txt 后再点一键越狱。"
+                            offsetPrompt = "No offsets for the current version; parse them manually.\n\n" +
+                                "Tap \"Parse offsets\", pick this model's boot.img or full package, generate " +
+                                "/data/local/tmp/ic-syms.txt, then tap one-tap jailbreak."
                         }
                         return@withContext true
                     }
@@ -1448,14 +1448,14 @@ class MainActivity : ComponentActivity() {
                     s.truncate(logFile)
                     val r = s.start(script, bin, logFile, ATTEMPTS, payload, extraEnv)
                     addLogOnMain(
-                        "[run] 方案: $SCHEME_ASSET  KSU: ${KSU_NAMES[ksuIndex]}\n$r"
+                        "[run] scheme: $SCHEME_ASSET  KSU: ${KSU_NAMES[ksuIndex]}\n$r"
                     )
                     logPath = logFile
                     logOff = 0
                     startPolling()
                     false
                 } catch (t: Throwable) {
-                    addLogOnMain("[run] 失败：\n" + explainError(t, "运行提权链"))
+                    addLogOnMain("[run] failed:\n" + explainError(t, "running the privilege-escalation chain"))
                     true
                 }
             }
@@ -1495,7 +1495,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun diag() {
-        val s = requireService("诊断") ?: return
+        val s = requireService("diagnostics") ?: return
         lifecycleScope.launch {
             val out = withContext(Dispatchers.IO) {
                 runCatching {
@@ -1510,14 +1510,14 @@ class MainActivity : ComponentActivity() {
                             "grep -Ei 'kernelsu|sukisu|resukisu|bakasu|sakisu|" +
                             "sevenk|vivoksu|ksunext|fina'"
                     )
-                }.getOrElse { "诊断失败：\n" + explainError(it, "诊断") }
+                }.getOrElse { "Diagnostics failed:\n" + explainError(it, "diagnostics") }
             }
-            addLog("[诊断]\n$out")
+            addLog("[diagnostics]\n$out")
         }
     }
 
     private fun parseOffsets() {
-        requireService("解析偏移") ?: return
+        requireService("parse offsets") ?: return
         parseMenu = true
     }
 
@@ -1525,28 +1525,28 @@ class MainActivity : ComponentActivity() {
     private fun ParseMenuDialog() {
         OverlayDialog(
             show = parseMenu,
-            title = "解析偏移",
+            title = "Parse offsets",
             onDismissRequest = { parseMenu = false },
             content = {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
                     Text(
-                        "从文件选择 boot.img / 全量包，或输入 OTA 链接只下载 boot 分区。",
+                        "Pick boot.img / a full package from files, or enter an OTA link to download only the boot partition.",
                         fontSize = 13.sp
                     )
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "从文件选择（boot.img / 全量包）",
+                        text = "Pick from files (boot.img / full package)",
                         onClick = {
                             parseMenu = false
                             runCatching {
                                 parsePicker.launch(arrayOf("*/*"))
                             }.onFailure {
                                 addLog(
-                                    "[解析偏移] 无法打开文件选择器：\n" +
-                                        explainError(it, "打开文件选择器")
+                                    "[parse offsets] cannot open the file picker:\n" +
+                                        explainError(it, "opening the file picker")
                                 )
                             }
                         },
@@ -1555,7 +1555,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "从链接下载全量包",
+                        text = "Download the full package from a link",
                         onClick = {
                             parseMenu = false
                             otaUrlText = prefs.getString("ota_url", "") ?: ""
@@ -1565,7 +1565,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "取消",
+                        text = "Cancel",
                         onClick = { parseMenu = false }
                     )
                 }
@@ -1577,14 +1577,14 @@ class MainActivity : ComponentActivity() {
     private fun OtaUrlDialog() {
         OverlayDialog(
             show = otaUrlPrompt,
-            title = "全量包链接",
+            title = "Full-package link",
             onDismissRequest = { otaUrlPrompt = false },
             content = {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
                     Text(
-                        "粘贴 OTA 的 http(s) 链接。只下载 boot 分区，不会下载整个包。",
+                        "Paste the OTA's http(s) link. Only the boot partition is downloaded, not the whole package.",
                         fontSize = 13.sp
                     )
                     Spacer(Modifier.height(12.dp))
@@ -1593,20 +1593,20 @@ class MainActivity : ComponentActivity() {
                         onValueChange = { otaUrlText = it },
                         modifier = Modifier.fillMaxWidth(),
                         backgroundMode = TextFieldMode.Rectangle,
-                        label = "OTA 链接",
+                        label = "OTA link",
                         singleLine = true
                     )
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "开始",
+                        text = "Start",
                         onClick = {
                             val url = otaUrlText.trim()
                             if (!url.startsWith("http://", true) &&
                                 !url.startsWith("https://", true)
                             ) {
                                 Toast.makeText(
-                                    this@MainActivity, "请输入 http(s) 链接",
+                                    this@MainActivity, "Enter an http(s) link",
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
@@ -1620,7 +1620,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "取消",
+                        text = "Cancel",
                         onClick = { otaUrlPrompt = false }
                     )
                 }
@@ -1629,7 +1629,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun parseFromUrl(url: String) {
-        val s = requireService("解析偏移") ?: return
+        val s = requireService("parse offsets") ?: return
         runStage = ""
         busy = true
         lifecycleScope.launch {
@@ -1640,31 +1640,31 @@ class MainActivity : ComponentActivity() {
             }
             try {
                 withContext(Dispatchers.IO) {
-                    note("[解析] 从链接提取 boot.img: $url")
+                    note("[parse] extracting boot.img from the link: $url")
                     val file = OtaUrlExtractor.extractBoot(url, cacheDir, ::note)
                     try {
-                        runParseFile(s, file, "boot.img（链接）", ::note)
+                        runParseFile(s, file, "boot.img (from link)", ::note)
                     } finally {
                         file.delete()
                     }
                 }
                 val out = log.toString()
-                addLog("[解析偏移]\n$out")
+                addLog("[parse offsets]\n$out")
                 if (!out.contains("parse_rc=0")) {
                     val tail = out.lines().filter { it.isNotBlank() }.takeLast(14)
                         .joinToString("\n")
                     notice = Notice(
-                        "解析失败",
-                        "没有生成符号表（解析器返回非 0）。\n\n最后几行日志：\n$tail"
+                        "Parse failed",
+                        "No symbol table generated (the parser returned non-zero).\n\nLast log lines:\n$tail"
                     )
                 }
             } catch (a: ParseAbort) {
-                addLog("[解析偏移] ${a.message}")
-                notice = Notice("无法解析", a.message ?: "未知错误")
+                addLog("[parse offsets] ${a.message}")
+                notice = Notice("Cannot parse", a.message ?: "Unknown error")
             } catch (t: Throwable) {
-                val why = explainError(t, "从链接提取 boot.img")
-                addLog("[解析偏移] 失败：\n$why")
-                notice = Notice("解析失败", why)
+                val why = explainError(t, "extracting boot.img from the link")
+                addLog("[parse offsets] failed:\n$why")
+                notice = Notice("Parse failed", why)
             } finally {
                 busy = false
             }
@@ -1678,7 +1678,7 @@ class MainActivity : ComponentActivity() {
         label: String,
         note: (String) -> Unit,
     ) {
-        parseStage = "解析已下载的 boot.img"
+        parseStage = "Parsing the downloaded boot.img"
         val stamp = (System.currentTimeMillis() / 1000).toString()
         val bin = "$TMP/ic-syms-a$stamp"
         val img = "$TMP/ic-boot-a$stamp.img"
@@ -1691,25 +1691,25 @@ class MainActivity : ComponentActivity() {
             val ch = fin.channel
             val size = ch.size()
             val head = readAt(ch, 0, 8)
-            note("[解析] 文件: $label  $size bytes")
+            note("[parse] file: $label  $size bytes")
             if (!(head.size >= 8 &&
                     String(head, 0, 8, Charsets.US_ASCII) == "ANDROID!")) {
-                throw ParseAbort("从链接提取出来的不是 Android boot 镜像（没有 ANDROID! 头）。")
+                throw ParseAbort("What was extracted from the link is not an Android boot image (no ANDROID! header).")
             }
             val hdr = readAt(ch, 0, 64)
             val ksize = u32(hdr, 8)
             val hver = u32(hdr, 40)
-            note("[解析] 类型: Android boot 镜像 v$hver，内核 $ksize bytes")
+            note("[parse] type: Android boot image v$hver, kernel $ksize bytes")
             if (ksize == 0L) {
                 throw ParseAbort(
-                    "提取到的是 init_boot / vendor_boot（不含内核），无法解析偏移。"
+                    "What was extracted is init_boot / vendor_boot (no kernel); offsets cannot be parsed."
                 )
             }
             checkBootIdentity(ch, size, note)
             val pushed = pushChannel(s, img, ch, 0, size)
-            note("[解析] 已推送 boot.img: $pushed bytes")
+            note("[parse] boot.img pushed: $pushed bytes")
         }
-        parseStage = "生成符号表"
+        parseStage = "Generating the symbol table"
         note(
             s.runCmd(
                 "ls -l $img 2>&1; $bin syms $img $syms 2>&1; " +
@@ -1724,31 +1724,31 @@ class MainActivity : ComponentActivity() {
     private data class Notice(val title: String, val message: String)
 
     private fun parseSelected(uri: Uri) {
-        val s = requireService("解析偏移") ?: return
-        val name = uri.lastPathSegment ?: "所选文件"
+        val s = requireService("parse offsets") ?: return
+        val name = uri.lastPathSegment ?: "the selected file"
         runStage = ""
         busy = true
         lifecycleScope.launch {
             try {
                 val out = withContext(Dispatchers.IO) { runParse(s, uri, name) }
-                addLog("[解析偏移]\n$out")
+                addLog("[parse offsets]\n$out")
                 if (!out.contains("parse_rc=0")) {
                     val tail = out.lines().filter { it.isNotBlank() }.takeLast(14)
                         .joinToString("\n")
                     notice = Notice(
-                        "解析失败",
-                        "没有生成符号表（解析器返回非 0）。\n\n" +
-                            "常见原因：所选镜像与本机内核版本不一致，或这个内核构建" +
-                            "暂时不被解析器支持。\n\n最后几行日志：\n$tail"
+                        "Parse failed",
+                        "No symbol table generated (the parser returned non-zero).\n\n" +
+                            "Common causes: the selected image does not match this device's kernel version, or this kernel build " +
+                            "is not yet supported by the parser.\n\nLast log lines:\n$tail"
                     )
                 }
             } catch (a: ParseAbort) {
-                addLog("[解析偏移] ${a.message}")
-                notice = Notice("无法解析", a.message ?: "未知错误")
+                addLog("[parse offsets] ${a.message}")
+                notice = Notice("Cannot parse", a.message ?: "Unknown error")
             } catch (t: Throwable) {
                 val why = explainError(t)
-                addLog("[解析偏移] 失败（$parseStage）：\n$why")
-                notice = Notice("解析失败", why)
+                addLog("[parse offsets] failed ($parseStage):\n$why")
+                notice = Notice("Parse failed", why)
             } finally {
                 busy = false
             }
@@ -1763,32 +1763,32 @@ class MainActivity : ComponentActivity() {
         val detail = t.message?.takeIf { it.isNotBlank() } ?: t.javaClass.name
         val hint = when {
             t is NoSuchFieldError || t is NoSuchMethodError ->
-                "全量包里的 zstd 数据无法解码：内置解码器缺失或与当前系统不兼容。" +
-                    "请确认安装的是完整 APK（不要删掉 lib/arm64-v8a/libextract.so），" +
-                    "或重新安装本版本后重试。"
+                "The zstd data inside the full package cannot be decoded: the built-in decoder is missing or incompatible with this system. " +
+                    "Make sure the full APK is installed (do not remove lib/arm64-v8a/libextract.so), " +
+                    "or reinstall this version and retry."
             t is OutOfMemoryError ->
-                "手机内存不足。全量包解压需要较多内存，请先关闭后台应用后重试；" +
-                    "也可以只选择已解出的 boot.img（不是全量包）。"
+                "Out of memory. Decompressing a full package takes a lot of RAM; close background apps and retry, " +
+                    "or just pick the already-extracted boot.img (not the full package)."
             t is SecurityException ->
-                "没有读取所选文件的权限。请把文件复制到「下载」目录后重新选择。"
+                "No permission to read the selected file. Copy it to the Downloads folder and pick it again."
             t is java.io.FileNotFoundException ->
-                "文件不存在或已经打不开，可能被移动、删除或没有读取权限，请重新选择。"
+                "The file no longer exists or cannot be opened; it may have been moved, deleted, or is unreadable. Pick it again."
             t is java.nio.channels.ClosedChannelException ->
-                "文件读取被中断（文件可能被其他应用占用或选择器已关闭），请重新选择。"
+                "The file read was interrupted (the file may be held by another app or the picker has closed). Pick it again."
             t is java.util.zip.ZipException ->
-                "压缩包结构损坏或不完整，请重新下载全量包。"
+                "The archive is corrupted or incomplete; re-download the full package."
             t is java.io.IOException ->
-                "读取文件时出错：$detail\n请确认文件完整（拷到「下载」目录后重试）。"
+                "Error while reading the file: $detail\nMake sure the file is intact (copy it to Downloads and retry)."
             t is IllegalArgumentException ->
-                "文件内容不符合预期：$detail"
+                "The file content is not what was expected: $detail"
             else ->
-                "读取或解析时出现未预期的错误：$detail"
+                "An unexpected error occurred while reading or parsing: $detail"
         }
-        return "$hint\n\n出错位置：$stage\n技术信息：${t.javaClass.simpleName}: $detail"
+        return "$hint\n\nFailed at: $stage\nTechnical info: ${t.javaClass.simpleName}: $detail"
     }
 
     private fun runParse(s: IIcService, uri: Uri, name: String): String {
-        parseStage = "打开所选文件"
+        parseStage = "Opening the selected file"
         val stamp = (System.currentTimeMillis() / 1000).toString()
         val bin = "$TMP/ic-syms-a$stamp"
         val img = "$TMP/ic-boot-a$stamp.img"
@@ -1804,42 +1804,42 @@ class MainActivity : ComponentActivity() {
         s.truncate(img)
 
         val pfd = contentResolver.openFileDescriptor(uri, "r")
-            ?: throw ParseAbort("无法打开所选文件（文件选择器没有返回可读句柄）")
+            ?: throw ParseAbort("Cannot open the selected file (the picker returned no readable handle)")
         val ch = FileInputStream(pfd.fileDescriptor).channel
         try {
             val size = ch.size()
             val head = readAt(ch, 0, 8)
-            note("[解析] 文件: $name  $size bytes")
+            note("[parse] file: $name  $size bytes")
             when {
                 head.size >= 4 && head[0] == 'P'.code.toByte() &&
                     head[1] == 'K'.code.toByte() -> {
-                    note("[解析] 类型: ZIP（全量包）")
-                    parseStage = "从全量包解压 boot 分区"
+                    note("[parse] type: ZIP (full package)")
+                    parseStage = "Extracting the boot partition from the full package"
                     extractFromZip(s, ch, size, img, ::note)
                 }
                 head.size >= 8 && String(head, 0, 8, Charsets.US_ASCII) == "ANDROID!" -> {
                     val hdr = readAt(ch, 0, 64)
                     val ksize = u32(hdr, 8)
                     val hver = u32(hdr, 40)
-                    note("[解析] 类型: Android boot 镜像 v$hver，内核 $ksize bytes")
-                    parseStage = "解析 boot 镜像"
+                    note("[parse] type: Android boot image v$hver, kernel $ksize bytes")
+                    parseStage = "Parsing the boot image"
                     if (ksize == 0L) {
                         throw ParseAbort(
-                            "所选镜像是 init_boot / vendor_boot（不含内核），无法解析偏移。\n\n" +
-                                "请选择该机型固件里的 boot.img，或直接选全量 OTA 包。"
+                            "The selected image is init_boot / vendor_boot (no kernel); offsets cannot be parsed.\n\n" +
+                                "Pick the boot.img from this model's firmware, or select the full OTA package directly."
                         )
                     }
-                    if (size <= 64) throw ParseAbort("boot 镜像大小异常（$size bytes）")
+                    if (size <= 64) throw ParseAbort("Abnormal boot image size ($size bytes)")
                     checkBootIdentity(ch, size, ::note)
                     val pushed = pushChannel(s, img, ch, 0, size)
-                    note("[解析] 已推送 boot.img: $pushed bytes")
+                    note("[parse] boot.img pushed: $pushed bytes")
                 }
                 else -> throw ParseAbort(
-                    "无法识别的文件：请选择 boot.img（Android boot 镜像）" +
-                        "或全量 OTA 包（.zip）。\n\ninit_boot / vendor_boot / 其他镜像都不支持。"
+                    "Unrecognized file: pick a boot.img (Android boot image) " +
+                        "or a full OTA package (.zip).\n\ninit_boot / vendor_boot / other images are not supported."
                 )
             }
-            parseStage = "生成符号表"
+            parseStage = "Generating the symbol table"
             val r = s.runCmd(
                 "ls -l $img 2>&1; $bin syms $img $syms 2>&1; " +
                     "echo parse_rc=$?; sed -n '1,3p' $syms 2>/dev/null; rm -f $img"
@@ -1885,8 +1885,8 @@ class MainActivity : ComponentActivity() {
         val imgFp = imgFpStr?.let { parseFingerprint(it) }
         val devFp = parseFingerprint(devFpStr)
         if (imgFp != null && devFp != null) {
-            note("[解析] boot 指纹: $imgFpStr")
-            note("[解析] 本机指纹: $devFpStr")
+            note("[parse] boot fingerprint: $imgFpStr")
+            note("[parse] device fingerprint: $devFpStr")
             /* Same build = same vendor and same build number.  The product
              * token may legitimately differ by a hardware suffix (the package
              * says PD2339 while the device reports PD2339M); requiring it made
@@ -1895,28 +1895,28 @@ class MainActivity : ComponentActivity() {
                 imgFp.incremental == devFp.incremental
             if (!same) {
                 throw ParseAbort(
-                    "所选 boot.img 与本机不是同一个 build。\n\n" +
-                        "镜像：${imgFp.vendor}/${imgFp.device} … ${imgFp.incremental}\n" +
-                        "本机：${devFp.vendor}/${devFp.device} … ${devFp.incremental}\n\n" +
-                        "请选择当前系统对应的 boot.img 或全量包。"
+                    "The selected boot.img is not the same build as this device.\n\n" +
+                        "Image: ${imgFp.vendor}/${imgFp.device} ... ${imgFp.incremental}\n" +
+                        "Device: ${devFp.vendor}/${devFp.device} ... ${devFp.incremental}\n\n" +
+                        "Pick the boot.img or full package matching the current system."
                 )
             }
-            note("[解析] 版本校验通过（boot 指纹一致）")
+            note("[parse] version check passed (boot fingerprint matches)")
             return
         }
         val banner = scanKernelBanner(ch, size)
         if (banner != null) {
-            note("[解析] 镜像内核: $banner，本机内核: $kernelVersion")
+            note("[parse] image kernel: $banner, device kernel: $kernelVersion")
             if (banner != kernelVersion && !kernelVersion.contains(banner)) {
                 throw ParseAbort(
-                    "boot.img 的内核（$banner）与本机内核（$kernelVersion）不一致。\n\n" +
-                        "请选择当前系统对应的 boot.img 或全量包。"
+                    "The boot.img's kernel ($banner) does not match this device's kernel ($kernelVersion).\n\n" +
+                        "Pick the boot.img or full package matching the current system."
                 )
             }
-            note("[解析] 版本校验通过（仅内核版本）")
+            note("[parse] version check passed (kernel version only)")
             return
         }
-        note("[解析] 无法从 boot.img 读取 build 指纹或内核版本，跳过版本校验")
+        note("[parse] cannot read the build fingerprint or kernel version from the boot.img; skipping the version check")
     }
 
     private fun extractFromZip(
@@ -1938,11 +1938,11 @@ class MainActivity : ComponentActivity() {
                 }
                 val pkgDev = kv["pre-device"].orEmpty()
                 val pkgVer = kv["post-version"].orEmpty()
-                note("[解析] 包信息: device=$pkgDev version=$pkgVer")
+                note("[parse] package info: device=$pkgDev version=$pkgVer")
                 checkPackageMatch(pkgDev, pkgVer)
             }
         } else {
-            note("[解析] 包内没有 META-INF/com/android/metadata，跳过设备/版本校验")
+            note("[parse] no META-INF/com/android/metadata in the package; skipping the device/version check")
         }
 
         val payload = zip.find("payload.bin")
@@ -1951,13 +1951,13 @@ class MainActivity : ComponentActivity() {
             payload != null -> {
                 if (payload.method != 0) {
                     throw ParseAbort(
-                        "payload.bin 在 zip 里是压缩存储，不是官方全量包的格式。" +
-                            "请使用官方全量包（payload.bin 必须为 Stored/未压缩）。"
+                        "payload.bin is stored compressed inside the zip - not the official full-package format. " +
+                            "Use an official full package (payload.bin must be Stored/uncompressed)."
                     )
                 }
-                note("[解析] payload.bin: ${payload.compressedSize} bytes @ ${payload.dataOffset}")
+                note("[parse] payload.bin: ${payload.compressedSize} bytes @ ${payload.dataOffset}")
                 val plan = BootExtractor.manifest(ch, payload.dataOffset)
-                note("[解析] boot 分区: ${plan.size} bytes, ${plan.ops.size} ops, block=${plan.blockSize}")
+                note("[parse] boot partition: ${plan.size} bytes, ${plan.ops.size} ops, block=${plan.blockSize}")
                 BootExtractor.extract(ch, payload.dataOffset, plan, note) { off, bytes, from, len ->
                     var done = 0
                     while (done < len) {
@@ -1969,9 +1969,9 @@ class MainActivity : ComponentActivity() {
             }
             bootEntry != null -> {
                 val pushed = pushEntry(s, img, zip, bootEntry)
-                note("[解析] 包内 boot.img: $pushed bytes")
+                note("[parse] boot.img in package: $pushed bytes")
             }
-            else -> throw ParseAbort("这个 zip 里既没有 payload.bin 也没有 boot.img，不是可用的全量包。")
+            else -> throw ParseAbort("This zip has neither payload.bin nor boot.img; it is not a usable full package.")
         }
     }
 
@@ -1983,18 +1983,18 @@ class MainActivity : ComponentActivity() {
         val version = Regex("""\d+\.\d+\.\d+\.\d+""").find(pkgVer)?.value
         val mismatch = when {
             pkgDev.isNotEmpty() && !deviceStr.contains(pkgDev, ignoreCase = true) ->
-                "设备不匹配：这个包是 $pkgDev，当前设备是 $deviceStr"
+                "Device mismatch: this package is for $pkgDev, this device is $deviceStr"
             version != null && !buildId.contains(version) ->
-                "版本不匹配：这个包是 $pkgVer，当前系统是 $buildId"
+                "Version mismatch: this package is $pkgVer, the current system is $buildId"
             else -> null
         }
         if (mismatch != null) {
             throw ParseAbort(
-                "$mismatch\n\n已拒绝生成偏移：用错版本的地址跑写原语会让写操作落到" +
-                    "错误的内核地址。请改用当前设备和版本对应的固件包 / boot.img。"
+                "$mismatch\n\nOffset generation refused: running the write primitive with the wrong version's addresses sends the writes to " +
+                    "wrong kernel addresses. Use the firmware package / boot.img matching this device and version."
             )
         }
-        addLog("[解析] 设备/版本校验通过: $deviceStr")
+        addLog("[parse] device/version check passed: $deviceStr")
     }
 
     private fun pushChannel(s: IIcService, dst: String, ch: FileChannel, start: Long, length: Long): Long {
@@ -2024,7 +2024,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cleanup() {
-        cleanupDialog = requireService("清理") ?: return
+        cleanupDialog = requireService("clean up") ?: return
     }
 
     /** Deletes this tool's /data/local/tmp leftovers; works before any root. */
@@ -2041,12 +2041,12 @@ class MainActivity : ComponentActivity() {
                             "echo ---; ls -l /data/local/tmp/ 2>/dev/null | " +
                             "grep -E 'ic-|ksu|payload' | head -20"
                     )
-                }.getOrElse { "清理失败：\n" + explainError(it, "清理临时文件") }
+                }.getOrElse { "Cleanup failed:\n" + explainError(it, "cleaning temp files") }
             }
-            addLog("[清理] 本工具临时文件\n$out")
+            addLog("[cleanup] this tool's temp files\n$out")
             Toast.makeText(
                 this@MainActivity,
-                "已清理本工具临时文件",
+                "This tool's temp files cleaned",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -2059,25 +2059,25 @@ class MainActivity : ComponentActivity() {
         val s = cleanupDialog
         OverlayDialog(
             show = s != null,
-            title = "清理",
+            title = "Clean up",
             onDismissRequest = { cleanupDialog = null },
             content = {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
                     Text(
-                        "「清理本工具临时文件」删除 /data/local/tmp 里本工具运行时留下的" +
-                            "进程/脚本/日志副本，提权前就可以做，不影响已解析的 " +
-                            "ic-syms.txt。\n\n" +
-                            "「清理 KSU」删除 /data/adb/ksu、/data/adb/modules、" +
-                            "/data/adb/modules_update 等 KSU 数据。已加载的内核模块要重启后" +
-                            "才消失；清理后请重启再提权。管理器 APK 默认保留。",
+                        "\"Clean this tool's temp files\" deletes the processes, scripts and log copies this tool left in /data/local/tmp " +
+                            "at any time before privilege escalation; it does not affect the already-parsed " +
+                            "ic-syms.txt.\n\n" +
+                            "\"Clean KSU\" deletes /data/adb/ksu, /data/adb/modules, " +
+                            "/data/adb/modules_update and other KSU data. A loaded kernel module disappears only after " +
+                            "a reboot; reboot before escalating again after cleaning. The manager APK is kept by default.",
                         fontSize = 13.sp
                     )
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "清理本工具临时文件",
+                        text = "Clean this tool's temp files",
                         onClick = {
                             cleanupDialog = null
                             s?.let { doTempCleanup(it) }
@@ -2087,7 +2087,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "清理 KSU（保留管理器）",
+                        text = "Clean KSU (keep the manager)",
                         onClick = {
                             cleanupDialog = null
                             s?.let { doCleanup(it, false) }
@@ -2096,7 +2096,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "连管理器一起卸载",
+                        text = "Uninstall the manager too",
                         onClick = {
                             cleanupDialog = null
                             s?.let { doCleanup(it, true) }
@@ -2105,7 +2105,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "取消",
+                        text = "Cancel",
                         onClick = { cleanupDialog = null }
                     )
                 }
@@ -2130,7 +2130,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "知道了",
+                        text = "Got it",
                         onClick = { notice = null },
                         colors = ButtonDefaults.textButtonColorsPrimary()
                     )
@@ -2144,7 +2144,7 @@ class MainActivity : ComponentActivity() {
         val msg = offsetPrompt
         OverlayDialog(
             show = msg != null,
-            title = "缺少偏移",
+            title = "Missing offsets",
             onDismissRequest = { offsetPrompt = null },
             content = {
                 Column(
@@ -2154,7 +2154,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "解析偏移",
+                        text = "Parse offsets",
                         onClick = {
                             offsetPrompt = null
                             parseOffsets()
@@ -2164,7 +2164,7 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
-                        text = "取消",
+                        text = "Cancel",
                         onClick = { offsetPrompt = null }
                     )
                 }
@@ -2187,10 +2187,10 @@ class MainActivity : ComponentActivity() {
                     s.makeExec(script)
                     s.runCmd("sh $script --logs" + (if (apk) " --apk" else "") + " 2>&1")
                 } catch (t: Throwable) {
-                    "清理失败：\n" + explainError(t, "清理临时文件")
+                    "Cleanup failed:\n" + explainError(t, "cleaning temp files")
                 }
             }
-            addLog("[清理]\n$out")
+            addLog("[cleanup]\n$out")
         }
     }
 
@@ -2257,7 +2257,7 @@ class MainActivity : ComponentActivity() {
     private fun updateStage(line: String) {
         if (line.contains("[core] exit=")) {
             val rc = line.substringAfter("[core] exit=").trim()
-            runStage = if (rc == "0") "完成" else "失败（exit=$rc）"
+            runStage = if (rc == "0") "Done" else "Failed (exit=$rc)"
             busy = false
             // Keep the outcome on the button for a moment, then go back idle.
             lifecycleScope.launch {
@@ -2278,9 +2278,9 @@ class MainActivity : ComponentActivity() {
     private val partialLine = StringBuilder()
 
     private enum class AppTab(val label: String, val icon: ImageVector) {
-        HOME("首页", Icons.Filled.Home),
-        LOGS("日志", COUIIcons.Notes),
-        ABOUT("关于", Icons.Filled.Info)
+        HOME("Home", Icons.Filled.Home),
+        LOGS("Logs", COUIIcons.Notes),
+        ABOUT("About", Icons.Filled.Info)
     }
 
     private companion object {
@@ -2295,24 +2295,24 @@ class MainActivity : ComponentActivity() {
 
         /** Ordered phases of a run; the button shows "<n>/<total> <label>". */
         private val RUN_STAGES: List<Pair<String, List<String>>> = listOf(
-            "启动" to listOf("[core] start"),
-            "环境检查" to listOf("[anchors]", "[syms]"),
-            "校准内存" to listOf("[ids] trace", "[base] made"),
-            "泄漏 cred" to listOf("[leak] child exec"),
-            "定位 cred" to listOf("[cred] attempt="),
-            "设置 SELinux" to listOf("stage selinux", "set SELinux permissive"),
-            "零写 vr.ko" to listOf("vr: nulling", "stage vr_sys_exit_funcs"),
-            "伪造 cred" to listOf("stage fake_cred"),
-            "提权 uid" to listOf("stage fake_uid"),
-            "提权 euid" to listOf("stage fake_euid"),
-            "执行 payload" to listOf("exec payload", "[fullshell]", "plant verified"),
-            "完成" to listOf("handoff OK", "ROOT_SHELL_OK"),
+            "Start" to listOf("[core] start"),
+            "Env check" to listOf("[anchors]", "[syms]"),
+            "Calibrate memory" to listOf("[ids] trace", "[base] made"),
+            "Leak cred" to listOf("[leak] child exec"),
+            "Locate cred" to listOf("[cred] attempt="),
+            "Set SELinux" to listOf("stage selinux", "set SELinux permissive"),
+            "Zero-write vr.ko" to listOf("vr: nulling", "stage vr_sys_exit_funcs"),
+            "Fake cred" to listOf("stage fake_cred"),
+            "Escalate uid" to listOf("stage fake_uid"),
+            "Escalate euid" to listOf("stage fake_euid"),
+            "Run payload" to listOf("exec payload", "[fullshell]", "plant verified"),
+            "Done" to listOf("handoff OK", "ROOT_SHELL_OK"),
         )
 
         private val KSU_NAMES = listOf(
-            "自动检测", "KernelSU", "KernelSU-Next", "SukiSU Ultra",
-            "BakaSU", "ReSukiSU (旧包名)", "SakiSU", "FinaSU", "7kimisu",
-            "7kimisu (备用包名)", "vivoKSU"
+            "Auto-detect", "KernelSU", "KernelSU-Next", "SukiSU Ultra",
+            "BakaSU", "ReSukiSU (old pkg name)", "SakiSU", "FinaSU", "7kimisu",
+            "7kimisu (alternate pkg name)", "vivoKSU"
         )
         /* Keep this list in step with KNOWN in assets/ksu_handoff.sh: the
          * script can only hand off to managers it knows, so a manager that
@@ -2332,15 +2332,15 @@ class MainActivity : ComponentActivity() {
 
         private val licenseItems = listOf(
             LicenseItem(
-                name = "IC Timer LPE（本项目）",
-                author = "kzktor/ic-timer-lpe，作者酷安@散花神木",
+                name = "IC Timer LPE (this project)",
+                author = "kzktor/ic-timer-lpe, by Coolapk @散花神木 (Sanhua Shenmu)",
                 website = PROJECT_URL,
                 licenses = listOf(LicenseText("GPL-3.0", asset = "licenses/GPL-3.0.txt"))
             ),
             LicenseItem(
                 name = "YuKongA/ghostlock-app",
-                author = "YuKongA，Apache-2.0；本项目的全量包解压与 " +
-                    "boot.img 提取代码参考此项目",
+                author = "YuKongA, Apache-2.0; this project's full-package decompression and " +
+                    "boot.img extraction code references this project",
                 website = "https://github.com/YuKongA/ghostlock-app",
                 licenses = listOf(
                     LicenseText("Apache-2.0", asset = "licenses/Apache-2.0.txt")
@@ -2348,35 +2348,35 @@ class MainActivity : ComponentActivity() {
             ),
             LicenseItem(
                 name = "molanp/CVE-2026-98260-vivo-s60-poc",
-                author = "S60 PoC，MIT 许可的参考实现",
+                author = "S60 PoC, MIT-licensed reference implementation",
                 website = "https://github.com/molanp/CVE-2026-98260-vivo-s60-poc",
                 licenses = listOf(LicenseText("MIT", asset = "licenses/MIT.txt"))
             ),
             LicenseItem(
                 name = "woshigenm/CVE-2026-98260",
-                author = "MIT 许可的参考实现",
+                author = "MIT-licensed reference implementation",
                 website = "https://github.com/woshigenm/CVE-2026-98260",
                 licenses = listOf(LicenseText("MIT", asset = "licenses/MIT.txt"))
             ),
             LicenseItem(
                 name = "whooslizi/infinitycore-x200pro",
-                author = "GPL-3.0 许可的参考实现",
+                author = "GPL-3.0-licensed reference implementation",
                 website = "https://github.com/whooslizi/infinitycore-x200pro",
                 licenses = listOf(LicenseText("GPL-3.0", asset = "licenses/GPL-3.0.txt"))
             ),
             LicenseItem(
                 name = "nisu123f/dada-cve-AN00",
-                author = "参考实现",
+                author = "Reference implementation",
                 website = "https://github.com/nisu123f/dada-cve-AN00"
             ),
             LicenseItem(
                 name = "kpgc10kai/TimerRoot",
-                author = "参考实现",
+                author = "Reference implementation",
                 website = "https://github.com/kpgc10kai/TimerRoot"
             ),
             LicenseItem(
                 name = "Yunnijian/Shark",
-                author = "界面移植来源，GPL-3.0",
+                author = "UI port source, GPL-3.0",
                 website = "https://github.com/Yunnijian/Shark",
                 licenses = listOf(LicenseText("GPL-3.0", asset = "licenses/GPL-3.0.txt"))
             )

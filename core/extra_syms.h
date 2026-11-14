@@ -6,7 +6,7 @@
  * carried.  They are data symbols (not code anchors), so they cannot be
  * derived from a table; they are extracted from the image of each build we
  * have locally, which makes those builds work from the built-in table alone
- * (no external ic-syms.txt, i.e. the same result as "解析偏移").
+ * (no external ic-syms.txt, i.e. the same result as "parse offsets").
  *
  * Keyed by the anchor table's name.  Missing builds simply fall back to the
  * external table.
