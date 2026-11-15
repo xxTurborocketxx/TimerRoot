@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
     private var authorized by mutableStateOf(false)
     private var binderReady by mutableStateOf(false)
     private var bound by mutableStateOf(false)
+    private var bindingInFlight = false
     private var kernelVersion by mutableStateOf("Unknown")
     private var deviceModel by mutableStateOf("Unknown")
     private var selinuxText by mutableStateOf("Unknown")
@@ -248,6 +249,7 @@ class MainActivity : ComponentActivity() {
         binderReady = false
         bound = false
         service = null
+        bindingInFlight = false
         refreshAuth()
     }
 
@@ -268,6 +270,7 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             service = IIcService.Stub.asInterface(binder)
             bound = true
+            bindingInFlight = false
             lifecycleScope.launch {
                 val id = withContext(Dispatchers.IO) {
                     runCatching { service?.identity() }.getOrNull() ?: "Failed to read identity"
@@ -1315,6 +1318,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun bindUserService() {
+        if (bound || bindingInFlight) return
+        bindingInFlight = true
         runCatching {
             val cn = ComponentName(this, IcService::class.java)
             val args = Shizuku.UserServiceArgs(cn)
@@ -1325,7 +1330,10 @@ class MainActivity : ComponentActivity() {
                 .processNameSuffix(":icsvc")
             Shizuku.bindUserService(args, conn)
             addLog("[bind] starting the Shizuku shell user service...")
-        }.onFailure { addLog("[bind] failed:\n" + explainError(it, "binding the Shizuku user service")) }
+        }.onFailure {
+            bindingInFlight = false
+            addLog("[bind] failed:\n" + explainError(it, "binding the Shizuku user service"))
+        }
     }
 
     private fun openManager() {
@@ -1635,8 +1643,9 @@ class MainActivity : ComponentActivity() {
                      * every manager from an app targeting Android 11+. */
                     val shellPkgs = installedPackagesShell(s)
                     val selectedOk = managerPresent(selectedPkg, shellPkgs)
-                    if (KSU_PKGS.none { managerPresent(it, shellPkgs) }) {
-                        addLogOnMain("[run] kein KSU-Manager installiert — Proof-Modus ohne Handoff")
+                    if (KSU_PKGS.none { managerPresent(it, shellPkgs) } &&
+                        !managerPresent("kqvdie.zeykvw.hpbcyd", shellPkgs)) {
+                        addLogOnMain("[run] no KSU manager installed - proof mode without handoff")
                     }
                     /* The selected manager is optional: the handoff script
                      * tries every installed manager anyway.  When the selected
