@@ -23,9 +23,11 @@ live jailbreak status).
   turns red — root is live until the next reboot;
 - The log contains the root proof (`LPE-PROOF`, `uid=0(root)`,
   `module resident`) and the stage display ends on "12/12 Done";
-- The manager (KernelSU / KSU-Next) shows **Working — Jailbreak mode** when
-  opened. A "manager autostart skipped" line in the log is expected on
-  this build — open the manager yourself;
+- The manager (KernelSU / KSU-Next) opens automatically when the run
+  finishes and shows **Working — Jailbreak mode**. A "manager autostart
+  skipped" line only means the handoff's own start attempt did not fire —
+  the app opens the manager itself afterwards; open it yourself only if
+  it does not appear;
 - SELinux is back to **enforcing** after the run (the manager may show a
   stale value until it is restarted).
 
