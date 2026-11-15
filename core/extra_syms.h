@@ -50,6 +50,13 @@ static const struct ic_extra_syms ic_extra_syms_tab[] = {
      * boot fingerprint vivo/PD2425/PD2425 … compiler260917174806). */
     { "ic_pd2425_1611710_links", 0xffffffc00a1f11c8ULL, 0xffffffc00a1f2a78ULL,
       0xffffffc00a1f24e8ULL },
+    /* Motorola Edge 50 Ultra (ctwo) A171SUVH.42-20-1, kernel banner
+     * 6.1.157-android14-11-gb3d4cdadf339-ab16160610 -- from the ic-syms.txt
+     * parse of the shipped build (36e2a-a4560).  NOT the vivo fixed
+     * deltas: this GKI 6.1.157 layout keeps root_user = ns + 0x290,
+     * init_ucounts = ns + 0x1b18, init_groups = ns + 0x15b0. */
+    { "ctwo_4220_links", 0xffffffc00a030780ULL, 0xffffffc00a032008ULL,
+      0xffffffc00a031aa0ULL },
 };
 
 #endif /* IC_EXTRA_SYMS_H */

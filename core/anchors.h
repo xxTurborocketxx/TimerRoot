@@ -82,6 +82,25 @@ static const char *const ic_anchor_names[IC_ANCHOR_N] = {
 };
 
 static const struct ic_anchor_build ic_anchor_builds[] = {
+    /* Motorola Edge 50 Ultra (ctwo), build A171SUVH.42-20-1; kernel banner
+     * 6.1.157-android14-11-gb3d4cdadf339-ab16160610 (GKI, 36e2a-a4560).
+     * Only the last four links are consumed on the run path (tracepoint,
+     * selinux_state, init_user_ns, init_cred); the vote anchors stay 0
+     * because the slide comes from the timer call site (run_plant).  The
+     * fake-cred objects for this GKI layout live in ic_extra_syms_tab
+     * (ctwo_4220_links), NOT at the vivo fixed offsets. */
+    { "6.1.157-android14-11-gb3d4cdadf339", "A171SUVH", "A171SUVH.42-20", "ctwo_4220_links", {
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0xffffffc00a1b1da0ULL, 0xffffffc00a25b820ULL,
+        0xffffffc00a0304f0ULL, 0xffffffc00a031aa8ULL,
+    } },
     { "6.1.145-android14-11-maybe-dirty", "PD2307|PD2329|V2307", "16.2.11", "iqoo12-16.2.11", {
         0xffffffc00830048cULL, 0xffffffc00836b6ecULL, 0xffffffc008623c10ULL, 0xffffffc0085f487cULL, 0xffffffc0080b5fc8ULL, 0xffffffc0085f5688ULL, 0xffffffc00860ff88ULL, 0xffffffc0083038b8ULL, 0xffffffc008193778ULL, 0xffffffc008176af8ULL, 0xffffffc008175fb0ULL, 0xffffffc00a0d1e40ULL, 0xffffffc00816dca0ULL, 0xffffffc008bf9e64ULL, 0xffffffc0080df2b4ULL, 0xffffffc0081b3920ULL, 0xffffffc0081b4d34ULL, 0xffffffc0081aea58ULL, 0xffffffc00840384cULL, 0xffffffc008403c60ULL, 0xffffffc00845f234ULL, 0xffffffc0090a2b20ULL, 0xffffffc0090979e0ULL, 0xffffffc0081937bcULL, 0xffffffc009097aa4ULL, 0xffffffc009097e28ULL, 0xffffffc009098bc4ULL, 0xffffffc009098cbcULL, 0xffffffc00909bac8ULL, 0xffffffc00909c09cULL, 0xffffffc0080e6184ULL, 0xffffffc0080e4b58ULL, 0xffffffc0080e4dd8ULL, 0xffffffc0080de6a0ULL, 0xffffffc0080d9cbcULL, 0xffffffc0080d9f9cULL, 0xffffffc00854d864ULL, 0xffffffc008544ab4ULL, 0xffffffc008614a98ULL, 0xffffffc0085f3d58ULL, 0xffffffc0090a3ed8ULL, 0xffffffc0083f4c38ULL, 0xffffffc0083f54ccULL, 0xffffffc0083f57a4ULL, 0xffffffc0083f58b8ULL, 0xffffffc008da0fccULL, 0xffffffc008f88018ULL, 0xffffffc008ee47b0ULL, 0xffffffc00888b35cULL, 0xffffffc008ce2308ULL, 0xffffffc008cd8544ULL, 0xffffffc008417514ULL, 0xffffffc008415bfcULL, 0xffffffc008415800ULL, 0xffffffc0080b6d68ULL, 0xffffffc00836b6ccULL, 0xffffffc008368e90ULL, 0xffffffc0083003c4ULL, 0xffffffc00816da78ULL, 0xffffffc00871e038ULL, 0xffffffc0080d9414ULL, 0xffffffc0080d9b64ULL, 0xffffffc00a2f3680ULL, 0xffffffc00a47fb98ULL, 0xffffffc00a120e70ULL, 0xffffffc00a122430ULL } },
     { "6.1.145-android14-11-gf506252fa70d", "PD2506|V2506", "16.1.15.0", "builtin-16.1.15.0", {

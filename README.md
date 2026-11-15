@@ -38,9 +38,11 @@ Key design points:
 - **De-tagged address** = the table's `__tracepoint_sys_exit` link + slide
   (kallsyms preferred; when readable, the absolute address is used directly);
 - **Fake-cred object symbols**: the offsets of `root_user / init_ucounts /
-  init_groups` relative to `init_user_ns` are fixed across the 16.1/16.2
+  init_groups` relative to `init_user_ns` are fixed across the vivo 16.1/16.2
   builds (`+0x298 / +0x1b48 / +0x15b8`), derived from the built-in table's
-  `init_user_ns`;
+  `init_user_ns`; builds with a verified image (including the Edge 50 Ultra
+  GKI 6.1.157, where the layout differs: `+0x290 / +0x1b18 / +0x15b0`) carry
+  exact values in `ic_extra_syms_tab`, which take precedence;
 - **Write-then-verify**: the shell path reads back Uid from
   `/proc/<child>/status`; the fake path uses a peek protocol where the child
   reports its own `getuid()/geteuid()`; on a miss it retries (≤ 8 times).
