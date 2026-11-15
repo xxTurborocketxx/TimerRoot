@@ -178,6 +178,7 @@ class MainActivity : ComponentActivity() {
      * manager fails - that is success, not a failed run. */
     private var rootConfirmed = false
     private var offsetPrompt by mutableStateOf<String?>(null)
+    private var rerunPrompt by mutableStateOf(false)
     private var notice by mutableStateOf<Notice?>(null)
     private var parseMenu by mutableStateOf(false)
     private var otaUrlPrompt by mutableStateOf(false)
@@ -316,6 +317,7 @@ class MainActivity : ComponentActivity() {
                         }
                         CleanupDialog()
                         OffsetPromptDialog()
+                        RerunPromptDialog()
                         ParseMenuDialog()
                         OtaUrlDialog()
                         NoticeDialog()
@@ -422,6 +424,7 @@ class MainActivity : ComponentActivity() {
                                 runStage.isNotEmpty() -> runStage
                                 !binderReady -> "Shizuku not running (tap to open)"
                                 !authorized -> "Authorize Shizuku"
+                                runDoneThisBoot() -> "Reboot required (already ran)"
                                 else -> "One-tap jailbreak"
                             },
                             onClick = {
@@ -432,7 +435,10 @@ class MainActivity : ComponentActivity() {
                                         openManager()
                                     }
                                     !authorized -> Shizuku.requestPermission(REQ_SHIZUKU)
-                                    else -> runCore()
+                                    else -> if (runDoneThisBoot()) {
+                                        addLog("[run] refusing to rerun in this boot - reboot before rerunning (one run per boot)")
+                                        rerunPrompt = true
+                                    } else runCore()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -1358,6 +1364,25 @@ class MainActivity : ComponentActivity() {
                 (KSU_ALIASES[pkg] ?: emptyList()).any { managerInstalled(it) || it in shell }
             )
 
+    /* One run per boot: every run leaves a zombie behind and consumes the
+     * exploit's one-shot state, so a second attempt in the same boot cannot
+     * succeed and can panic the kernel (verified the hard way).  Block the
+     * button for the rest of this boot, keyed to Settings.Global.BOOT_COUNT. */
+    private fun bootCount(): Int =
+        runCatching {
+            Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT)
+        }.getOrDefault(-1)
+
+    private fun runDoneThisBoot(): Boolean {
+        val boot = bootCount()
+        return boot >= 0 && prefs.getInt("run_boot", -1) == boot
+    }
+
+    private fun markRunBoot() {
+        val boot = bootCount()
+        if (boot >= 0) prefs.edit().putInt("run_boot", boot).apply()
+    }
+
     private fun runCore() {
         val s = requireService("run") ?: return
         val selectedPkg = KSU_PKGS[ksuIndex]
@@ -1455,6 +1480,7 @@ class MainActivity : ComponentActivity() {
 
                     s.truncate(logFile)
                     val r = s.start(script, bin, logFile, ATTEMPTS, payload, extraEnv)
+                    markRunBoot()
                     addLogOnMain(
                         "[run] scheme: $SCHEME_ASSET  KSU: ${KSU_NAMES[ksuIndex]}\n$r"
                     )
@@ -2174,6 +2200,35 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth(),
                         text = "Cancel",
                         onClick = { offsetPrompt = null }
+                    )
+                }
+            }
+        )
+    }
+
+    @Composable
+    private fun RerunPromptDialog() {
+        OverlayDialog(
+            show = rerunPrompt,
+            title = "Reboot required",
+            onDismissRequest = { rerunPrompt = false },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "A run already happened in this boot.\n\n" +
+                            "The exploit leaves a zombie behind and consumes its one-shot state, " +
+                            "so a second attempt in the same boot cannot succeed and can panic the kernel.\n\n" +
+                            "Reboot the phone, then tap one-tap jailbreak again.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Got it",
+                        onClick = { rerunPrompt = false },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
                     )
                 }
             }
