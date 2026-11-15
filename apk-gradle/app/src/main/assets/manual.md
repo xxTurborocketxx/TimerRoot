@@ -1,14 +1,33 @@
 # User Manual
 
 This software is free and open source, by Coolapk @散花神木 (Sanhua Shenmu).
+This fork adds app-side safety and status features (one-run-per-boot lock,
+live jailbreak status).
 
 ## Run rules
 
 - **Reboot the phone** before every full run;
+- **One run per boot**: after any run the button switches to "Reboot
+  required (already ran)" and a second tap shows an explanation instead of
+  starting again. A second attempt in the same boot cannot succeed — the
+  exploit leaves a zombie behind and consumes its one-shot state — and in
+  the worst case it panics the kernel;
 - Leftover ic-timer processes after a run **cannot be kill -9'd** — only a
   reboot clears them;
 - Taking over KSU requires the matching manager APK to be installed first
   (the manager's own kernel module is loaded via late-load).
+
+## What success looks like
+
+- The status card shows **"Jailbreak active this boot"** and the button
+  turns red — root is live until the next reboot;
+- The log contains the root proof (`LPE-PROOF`, `uid=0(root)`,
+  `module resident`) and the stage display ends on "12/12 Done";
+- The manager (KernelSU / KSU-Next) shows **Working — Jailbreak mode** when
+  opened. A "manager autostart skipped" line in the log is expected on
+  this build — open the manager yourself;
+- SELinux is back to **enforcing** after the run (the manager may show a
+  stale value until it is restarted).
 
 ## Built-in offsets (model + version match)
 
@@ -44,4 +63,5 @@ package (.zip)**:
 ## Safe mode
 
 When checked, all KSU modules are disabled during privilege escalation
-(done through the ksud handoff script bundled with the manager).
+(the kernel module itself is still loaded via ksud late-load; existing
+KSU modules stay off).
