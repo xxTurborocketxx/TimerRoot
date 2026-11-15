@@ -1,5 +1,9 @@
 package dev.ic.timerlpe
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -9,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.SystemClock
 import android.os.IBinder
 import android.provider.Settings
@@ -58,6 +63,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Copyright
@@ -88,10 +95,14 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -191,6 +202,16 @@ class MainActivity : ComponentActivity() {
     /* v4: one-shot guards so auto-opening never fights the user. */
     private var autoOpenedShizuku = false
     private var managerOpenedThisRun = false
+    private var runStartMs = 0L
+
+    /* Wall-clock stamps let a saved log read as a timeline; the stamp
+     * is a display prefix only - the stage parsers and the outcome
+     * tracking still see the raw line. */
+    private val logTimeFmt =
+        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT)
+
+    private fun stampTime(line: String): String =
+        logTimeFmt.format(java.util.Date()) + " " + line
     private var notice by mutableStateOf<Notice?>(null)
     private var parseMenu by mutableStateOf(false)
     private var otaUrlPrompt by mutableStateOf(false)
@@ -451,7 +472,7 @@ class MainActivity : ComponentActivity() {
                                 if (busy) return@TextButton
                                 when {
                                     !binderReady -> {
-                                        addLog("Start Shizuku first (wireless debugging / ADB); do not start it as root")
+                                        addLog("[shizuku] start Shizuku first (wireless debugging / ADB); do not start it as root")
                                         openManager()
                                     }
                                     !authorized -> Shizuku.requestPermission(REQ_SHIZUKU)
@@ -703,6 +724,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LogScreen(state: List<String>, backdrop: LayerBackdrop?) {
+        val clipboard = LocalClipboardManager.current
         Scaffold(
             topBar = {
                 BlurredBar(backdrop = backdrop) {
@@ -710,12 +732,21 @@ class MainActivity : ComponentActivity() {
                         title = "Log",
                         color = Color.Transparent,
                         navigationIcon = {
-                            IconButton(onClick = { logs.clear() }) {
-                                Icon(
-                                    imageVector = COUIIcons.Notes,
-                                    contentDescription = "Clear log",
-                                    tint = COUITheme.colorScheme.onSurface
-                                )
+                            Row {
+                                IconButton(onClick = { shareLog() }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.IosShare,
+                                        contentDescription = "Save and share the log",
+                                        tint = COUITheme.colorScheme.onSurface
+                                    )
+                                }
+                                IconButton(onClick = { logs.clear() }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.DeleteOutline,
+                                        contentDescription = "Clear log",
+                                        tint = COUITheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     )
@@ -737,7 +768,15 @@ class MainActivity : ComponentActivity() {
             } else {
                 val listState = rememberLazyListState()
                 LaunchedEffect(state.size) {
-                    listState.scrollToItem(state.lastIndex)
+                    /* Follow the tail only when the reader already sits
+                     * at the bottom; scrolling up to read stays put. */
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    if (info.totalItemsCount == 0 ||
+                        last >= info.totalItemsCount - 2
+                    ) {
+                        listState.scrollToItem(state.lastIndex)
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -756,7 +795,39 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         items(state) { line ->
-                            Text(line, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                            val dark = isSystemInDarkTheme()
+                            val contentColor = logLineColor(line, dark)
+                            Text(
+                                buildAnnotatedString {
+                                    if (line.length > 9 &&
+                                        line[2] == ':' && line[5] == ':'
+                                    ) {
+                                        pushStyle(
+                                            SpanStyle(
+                                                fontSize = 10.sp,
+                                                color = contentColor.copy(alpha = 0.55f)
+                                            )
+                                        )
+                                        append(line.substring(0, 8))
+                                        append(' ')
+                                        pop()
+                                        append(line.substring(9))
+                                    } else {
+                                        append(line)
+                                    }
+                                },
+                                color = contentColor,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (line.contains("========"))
+                                    FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.clickable {
+                                    clipboard.setText(AnnotatedString(line))
+                                    Toast.makeText(
+                                        this@MainActivity, "Copied", Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
                         }
                     }
                 }
@@ -1253,8 +1324,8 @@ class MainActivity : ComponentActivity() {
                 .tag("ic-lpe")
                 .processNameSuffix(":icsvc")
             Shizuku.bindUserService(args, conn)
-            addLog("Binding the shell user service...")
-        }.onFailure { addLog("Binding failed:\n" + explainError(it, "binding the Shizuku user service")) }
+            addLog("[bind] starting the Shizuku shell user service...")
+        }.onFailure { addLog("[bind] failed:\n" + explainError(it, "binding the Shizuku user service")) }
     }
 
     private fun openManager() {
@@ -1271,19 +1342,119 @@ class MainActivity : ComponentActivity() {
      * up by the core (its "am start" fails), so launch it from here
      * instead of leaving the user to find it manually. */
     private fun openKsuManager() {
+        val pkg = installedKsuPkg() ?: return
+        addLogOnMain("[i] opening the ROOT manager ($pkg) - root is live")
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent != null) runCatching { startActivity(intent) }
+    }
+
+    /* The manager candidate chain in one place, so the post-run
+     * heads-up notification resolves the same package as the open. */
+    private fun installedKsuPkg(): String? {
         val selected = KSU_PKGS[ksuIndex]
-        val pkg = (if (selected.isNotEmpty()) listOf(selected) else emptyList())
+        return (if (selected.isNotEmpty()) listOf(selected) else emptyList())
             .plus(KSU_PKGS.filter { it.isNotEmpty() })
             /* The installed manager is the spoof build under a
      * randomized package id that intentionally is not part of
      * the dropdown list; try it last. */
             .plus(listOf("kqvdie.zeykvw.hpbcyd"))
             .firstOrNull { packageManager.getLaunchIntentForPackage(it) != null }
-            ?: return
-        addLogOnMain("[i] opening the ROOT manager ($pkg) - root is live")
-        val intent = packageManager.getLaunchIntentForPackage(pkg)
+    }
+
+    /* When the run ends while this app is backgrounded, the in-app
+     * manager open can be blocked by the background activity launch
+     * restriction; a notification with a PendingIntent is not. */
+    private fun notifyRootLive() {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(
+            NotificationChannel(
+                "root_live", "Jailbreak status",
+                NotificationManager.IMPORTANCE_DEFAULT))
+        val pkg = installedKsuPkg()
+        val intent = (if (pkg != null)
+            packageManager.getLaunchIntentForPackage(pkg)
+        else
+            packageManager.getLaunchIntentForPackage(packageName))
             ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (intent != null) runCatching { startActivity(intent) }
+            ?: return
+        val pi = PendingIntent.getActivity(
+            this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val note = Notification.Builder(this, "root_live")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("TimerRoot")
+            .setContentText("Root is live - tap to open the ROOT manager")
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(1, note) }
+    }
+
+    /* Saves the timeline to the public Download folder (falling back
+     * to the app's own files dir) and hands the text to the share
+     * sheet at the same time. */
+    @Suppress("DEPRECATION")
+    private fun shareLog() {
+        if (logs.isEmpty()) {
+            Toast.makeText(this, "Log is empty", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val text = logs.joinToString("\n")
+        val stamp = java.text.SimpleDateFormat(
+            "yyyyMMdd-HHmmss", java.util.Locale.ROOT
+        ).format(java.util.Date())
+        val saved = runCatching {
+            val out = File(
+                Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS),
+                "TimerRoot-log-$stamp.txt")
+            out.parentFile?.mkdirs()
+            out.writeText(text)
+            out
+        }.getOrElse {
+            runCatching {
+                val alt = File(
+                    getExternalFilesDir(null),
+                    "TimerRoot-log-$stamp.txt")
+                alt.writeText(text)
+                alt
+            }.getOrNull()
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            putExtra(Intent.EXTRA_TITLE, "TimerRoot log")
+        }
+        runCatching { startActivity(Intent.createChooser(send, "Share log")) }
+        Toast.makeText(
+            this,
+            if (saved != null) "Saved to ${saved.path}"
+            else "Share sheet only (saving failed)",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    /* Reads at a glance: green = proof/success, red = failure,
+     * muted = app info lines; banners stay in the theme color and
+     * print bold. Dark mode uses lighter shades for contrast. */
+    private fun logLineColor(line: String, dark: Boolean): Color {
+        val s = if (line.length > 9 && line[2] == ':' && line[5] == ':')
+            line.substring(9) else line
+        return when {
+            s.contains("========") -> Color.Unspecified
+            s.contains("LPE-PROOF") || s.contains("uid=0") ||
+                s.contains("module resident") || s.contains("root is live") ||
+                s.contains("ROOT_SHELL_OK") || s.contains("Done")
+            -> if (dark) Color(0xFF81C784) else Color(0xFF2E7D32)
+            s.contains("Failed") || s.contains("failed") ||
+                s.contains("errno=") || s.contains("refus") ||
+                s.contains("panic")
+            -> if (dark) Color(0xFFEF9A9A) else Color(0xFFB3261E)
+            s.startsWith("[i] ") || s.startsWith("[preflight]") ||
+                s.startsWith("[bind]") || s.startsWith("[shizuku]")
+            -> if (dark) Color(0xFF9AA0A6) else Color(0xFF5F6368)
+            else -> Color.Unspecified
+        }
     }
 
     private fun refreshStaticState() {
@@ -1434,6 +1605,18 @@ class MainActivity : ComponentActivity() {
         runStageIndex = 0
         runStage = "1/${RUN_STAGES.size} ${RUN_STAGES.first().first}"
         runStamp = stamp
+        runStartMs = SystemClock.elapsedRealtime()
+        addLog(
+            "======== run start (boot age ${runStartMs / 1000}s) ========")
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(
+                android.Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.POST_NOTIFICATIONS), 7)
+        }
         lifecycleScope.launch {
             val refused = withContext(Dispatchers.IO) {
                 try {
@@ -2460,7 +2643,7 @@ class MainActivity : ComponentActivity() {
                     "[i] manager autostart skipped (spoofed manager; open it yourself - root is live)"
                 else line0
             if (line.isNotEmpty()) {
-                logs.add(line)
+                logs.add(stampTime(line))
                 updateStage(line)
             }
         }
@@ -2489,6 +2672,11 @@ class MainActivity : ComponentActivity() {
                 managerOpenedThisRun = true
                 openKsuManager()
             }
+            if (rootConfirmed) notifyRootLive()
+            addLog(
+                "======== run end after ${
+                    (SystemClock.elapsedRealtime() - runStartMs) / 1000}s: " +
+                    "$runStage ========")
             // Keep the outcome on the button for a moment, then go back idle.
             lifecycleScope.launch {
                 delay(4000)
