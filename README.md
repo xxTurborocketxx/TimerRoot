@@ -26,8 +26,6 @@ splits it into:
 | `core/extra_syms.h` | Object symbols needed by fake cred (extracted from the image + derived from `init_user_ns`) |
 | `core/timer98260.c` | Main body: trace oracle → cred leak → page spray → hit read-back → write primitive → shell / KSU endgame |
 | `core/ic_syms.c` | On-device "parse offsets": boot.img / Image / vmlinux / System.map → symbol table |
-| `harness/qemu_core_init.c` | Minimal local QEMU init (proc/sys/dev/tracefs, runs as root or uid 2000) |
-| `apk/` | Shizuku user-service APK (`run_core.sh` starts the core) |
 
 Key design points:
 
@@ -53,8 +51,7 @@ The UI moved from hand-written framework Views to a **ported Shark Jetpack
 Compose interface** ([Yunnijian/Shark](https://github.com/Yunnijian/Shark),
 GPL-3.0):
 
-- The project switched to Gradle + Kotlin + Compose (`apk-gradle/`; the old
-  `apk/` is kept for reference);
+- The project switched to Gradle + Kotlin + Compose (`apk-gradle/`);
 - Three bottom tabs: Home / Log / About, reusing Shark's `COUITheme`,
   `Scaffold`, `AnimatedContent`, blurred title bar and card components;
 - Home: status card, one-tap jailbreak, ROOT manager dropdown, safe-mode
@@ -148,9 +145,6 @@ core/build.sh /tmp/t98260 qemu_iqoo12     # NDK r27, API 29 (API 24 TLS
 cp core/out/qemu_iqoo12/ic-timer apk-gradle/app/src/main/assets/ic-timer
 cd apk-gradle && ./gradlew :app:assembleRelease   # AGP 9.4.1 / Kotlin 2.4.20
 ```
-
-`apk/` (javac + framework Views) is the hand-built 0.12-and-earlier app,
-kept for reference.
 
 `core/tools/gen_anchors.py <Image>` generates/updates the anchor tables
 from a kernel image; `core/tools/verify_tables.py core/anchors.h dist/`
