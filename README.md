@@ -54,6 +54,8 @@ unlock needed on the Motorola Edge 50 Ultra.
   manager — `module resident`);
 - The ROOT manager **opens automatically** after the run and shows
   **Working — Jailbreak mode**;
+- A **“Root is live”** notification appears when the run finishes (tap it
+  to open the manager);
 - SELinux is back to enforcing after the run.
 
 Root lives until the next reboot. **One run per boot**: after a run the
@@ -140,6 +142,11 @@ UI ported from [Shark](https://github.com/Yunnijian/Shark) (GPL-3.0):
   ends — no app restart needed;
 - **Auto-opens**: the app opens Shizuku for you when it is not running,
   and the ROOT manager after a successful run;
+- **Readable log**: every line is time-stamped and color-coded (green
+  proof / red failure / grey info), tapping a line copies it, the share
+  button saves the log to Download (`TimerRoot-log-*.txt`) or the share
+  sheet, a trash button clears it, and **run start / end banners** frame
+  each attempt with its duration;
 - **One-run-per-boot lock**: reruns in the same boot are blocked with an
   explanation dialog;
 - Offset preflight: `ic-timer info` (read-only) before a run; a
@@ -181,7 +188,7 @@ unlock required.
 | `tool/` | Host-side helpers: `kallsyms_py.py`, `parse_offsets.py`, `syms_host.c`, patched aircompressor sources |
 | `device/` | Device-side development scripts (manual runs, offset collection, vote helpers) |
 | `docs/` | Technique documents (translated) |
-| `.github/workflows/` | `build-apk` (CI build on push), `release` (APK on tag push) |
+| `.github/workflows/` | `build-apk` (CI: unit tests + debug/release builds on push), `release` (signed `TimerRoot-<tag>.apk` on tag push) |
 
 ## Build
 
@@ -198,7 +205,9 @@ test image), `ctwomoto` (Motorola Edge 50 Ultra GKI 6.1.157).
 `core/tools/gen_anchors.py <Image>` regenerates the anchor tables from a
 kernel image; `core/tools/verify_tables.py` cross-checks them against
 parse results. Tagging a release (`v*`) makes the `release` workflow
-build and publish the APK automatically.
+build and publish **`TimerRoot-<tag>.apk`** automatically — signed with
+the project keystore when the repository secrets are configured,
+otherwise debug-signed.
 
 ## Verification
 

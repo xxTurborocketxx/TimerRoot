@@ -28,8 +28,21 @@ live jailbreak status).
   skipped" line only means the handoff's own start attempt did not fire —
   the app opens the manager itself afterwards; open it yourself only if
   it does not appear;
+- A **"Root is live"** notification appears when the run finishes (tap it
+  to open the manager), if notifications are allowed;
 - SELinux is back to **enforcing** after the run (the manager may show a
   stale value until it is restarted).
+
+## The log tab
+
+- Every line is time-stamped (HH:mm:ss) and color-coded — green for
+  proof / success lines, red for failures, grey for info lines;
+- Tap a line to copy it to the clipboard;
+- The share icon saves the whole log to Download
+  (`TimerRoot-log-<stamp>.txt`) and offers the share sheet;
+- The trash icon clears the log;
+- Each run is framed by a "run start" / "run end" banner showing the
+  final stage and how long the run took.
 
 ## Built-in offsets (model + version match)
 
