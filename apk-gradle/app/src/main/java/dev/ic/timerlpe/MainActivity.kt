@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.IBinder
 import android.provider.Settings
 import android.widget.Toast
@@ -178,6 +179,9 @@ class MainActivity : ComponentActivity() {
      * manager fails - that is success, not a failed run. */
     private var rootConfirmed = false
     private var offsetPrompt by mutableStateOf<String?>(null)
+    private var loadPrompt by mutableStateOf<String?>(null)
+    private var missPrompt by mutableStateOf(false)
+    private var missHold = false
     private var rerunPrompt by mutableStateOf(false)
     private var notice by mutableStateOf<Notice?>(null)
     private var parseMenu by mutableStateOf(false)
@@ -317,6 +321,8 @@ class MainActivity : ComponentActivity() {
                         }
                         CleanupDialog()
                         OffsetPromptDialog()
+                        LoadPromptDialog()
+                        MissPromptDialog()
                         RerunPromptDialog()
                         ParseMenuDialog()
                         OtaUrlDialog()
@@ -438,7 +444,7 @@ class MainActivity : ComponentActivity() {
                                     else -> if (runDoneThisBoot()) {
                                         addLog("[run] refusing to rerun in this boot - reboot before rerunning (one run per boot)")
                                         rerunPrompt = true
-                                    } else runCore()
+                                    } else maybeWarnThenRun()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -2218,6 +2224,127 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    /* Field lesson (Nov 15): a fake_uid timing miss leaves the core holding
+     * a zombie and demanding a reboot; that outcome lived only in the
+     * scrolling log and looked like a plain failure. Catch the core's own
+     * markers and turn them into button text plus a dialog. */
+    private fun trackOutcome(line: String) {
+        if (line.contains("[core] start")) missHold = false
+        if (line.contains("burst hit=0") || line.contains("holding zombie")) missHold = true
+        if (missHold && line.contains("[core] exit=")) {
+            postUi {
+                missPrompt = true
+                runStage = "Miss - reboot before rerun"
+            }
+        }
+    }
+
+    /* The timing race of the fake-cred stages misses far more often while
+     * the system churns (boot storm, telephony ANR waves) or right after
+     * boot. /proc/loadavg and /proc/uptime are world-readable, so the app
+     * can ask for a quiet window without touching Shizuku. */
+    private val quietLoadLimit = 6.0
+    private val quietBootSeconds = 150L
+
+    /* v3 lesson (live, boot 10): the load check never fired because the
+     * app process itself could not read the load average and v1/v2
+     * silently measured -1 even under heavy storm load. The load now
+     * comes from the shell user service - the same context that runs
+     * the core - and an unreadable load warns instead of running. */
+    private fun systemLoad1(s: IIcService): Double = runCatching {
+        s.runCmd("cat /proc/loadavg").trim().split(" ").firstOrNull()?.toDoubleOrNull() ?: -1.0
+    }.getOrNull() ?: -1.0
+
+    /* v1 lesson: /proc/uptime prints "123.45 678.90" and parsing the
+     * decimal first token as an integer always failed, so the age read as
+     * -1 and the fresh-boot check never fired. Uptime now comes from the
+     * system clock - no file access, no parsing, no failure mode. */
+    private fun bootAgeSeconds(): Long = SystemClock.elapsedRealtime() / 1000
+
+    private fun maybeWarnThenRun() {
+        val s = requireService("preflight") ?: return
+        lifecycleScope.launch {
+            val (load, age) = withContext(Dispatchers.IO) {
+                systemLoad1(s) to bootAgeSeconds()
+            }
+            addLog("[preflight] 1-min load $load, boot age ${age}s")
+            val loadBusy = load >= quietLoadLimit
+            val bootFresh = age in 0..quietBootSeconds
+            val loadUnknown = load < 0
+            if (!loadBusy && !bootFresh && !loadUnknown) {
+                runCore()
+                return@launch
+            }
+            val parts = mutableListOf<String>()
+            if (loadUnknown) parts.add("The system load could not be measured (safe-guard warning).")
+            if (loadBusy) parts.add("System load is high (1-min load ${"%.1f".format(load)}, quiet limit ${"%.1f".format(quietLoadLimit)}).")
+            if (bootFresh) parts.add("This boot is only ${age}s old (settle time ${quietBootSeconds}s).")
+            loadPrompt = "The exploit's timing race is far more likely to miss on a busy or freshly " +
+                "booted system: a miss burns the one run of this boot, a bad hit can panic the kernel.\n\n" +
+                parts.joinToString("\n\n") +
+                "\n\nIf you can, wait for a quiet window, then run."
+        }
+    }
+    @Composable
+    private fun LoadPromptDialog() {
+        OverlayDialog(
+            show = loadPrompt != null,
+            title = "System is busy",
+            onDismissRequest = { loadPrompt = null },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(loadPrompt ?: "", fontSize = 13.sp)
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Run anyway",
+                        onClick = {
+                            loadPrompt = null
+                            runCore()
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Wait for a quiet window",
+                        onClick = { loadPrompt = null }
+                    )
+                }
+            }
+        )
+    }
+
+    @Composable
+    private fun MissPromptDialog() {
+        OverlayDialog(
+            show = missPrompt,
+            title = "Timing miss - reboot required",
+            onDismissRequest = { missPrompt = false },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "The core missed its timing window (fake_uid stage) and is holding a zombie " +
+                            "as the one-run-per-boot marker.\n\n" +
+                            "A rerun in this boot cannot succeed and can panic the kernel. " +
+                            "Reboot the phone, let it settle for 2-3 minutes, then tap one-tap jailbreak again.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Got it",
+                        onClick = { missPrompt = false },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
+            }
+        )
+    }
     private fun postUi(block: () -> Unit) {
         runOnUiThread(block)
     }
@@ -2306,6 +2433,7 @@ class MainActivity : ComponentActivity() {
      * "plant" lines of a later stage repeat earlier text.
      */
     private fun updateStage(line: String) {
+        trackOutcome(line)
         if (ROOT_PROOF_MARKERS.any { line.contains(it) }) rootConfirmed = true
         if (line.contains("[core] exit=")) {
             val rc = line.substringAfter("[core] exit=").trim()
