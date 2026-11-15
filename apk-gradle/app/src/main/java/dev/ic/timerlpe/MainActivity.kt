@@ -499,20 +499,6 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 )
-                                HorizontalDivider()
-                                ArrowPreference(
-                                    title = "Support the developer",
-                                    summary = "Donation QR code",
-                                    onClick = { showDonate = true },
-                                    startAction = {
-                                        Icon(
-                                            imageVector = Icons.Filled.Favorite,
-                                            contentDescription = null,
-                                            modifier = Modifier.padding(end = 6.dp),
-                                            tint = COUITheme.colorScheme.onBackground
-                                        )
-                                    }
-                                )
                             }
                         }
                     }
@@ -922,20 +908,6 @@ class MainActivity : ComponentActivity() {
                                     startAction = {
                                         Icon(
                                             imageVector = Icons.Filled.BugReport,
-                                            contentDescription = null,
-                                            modifier = Modifier.padding(end = 6.dp),
-                                            tint = COUITheme.colorScheme.onBackground
-                                        )
-                                    }
-                                )
-                                HorizontalDivider()
-                                ArrowPreference(
-                                    title = "Support the developer",
-                                    summary = "Donation QR code",
-                                    onClick = { showDonate = true },
-                                    startAction = {
-                                        Icon(
-                                            imageVector = Icons.Filled.Favorite,
                                             contentDescription = null,
                                             modifier = Modifier.padding(end = 6.dp),
                                             tint = COUITheme.colorScheme.onBackground
