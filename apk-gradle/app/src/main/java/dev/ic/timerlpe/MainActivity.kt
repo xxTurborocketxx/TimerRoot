@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
      * refreshed at every entry point (resume, run start, run end). */
     private var rootedNow by mutableStateOf(false)
     /* v4: one-shot guards so auto-opening never fights the user. */
-    private var autoOpenedShizuku = false
+    private var shizukuHintShown = false
     private var managerOpenedThisRun = false
     private var runStartMs = 0L
 
@@ -381,10 +381,9 @@ class MainActivity : ComponentActivity() {
         if (authorized && !bound) bindUserService()
         refreshStaticState()
         refreshRunDone()
-        if (!binderReady && !autoOpenedShizuku) {
-            autoOpenedShizuku = true
-            addLog("[i] Shizuku is not running - opening it; start its server, then come back")
-            openManager()
+        if (!binderReady && !shizukuHintShown) {
+            shizukuHintShown = true
+            addLog("[i] Shizuku is not running - open it with the button below; the manual and log tabs work without it")
         }
     }
 
@@ -459,16 +458,33 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        StatusCard(granted = binderReady && authorized && bound, rooted = rootedNow)
+                        StatusCard(
+                            granted = binderReady && authorized && bound,
+                            rooted = rootedNow,
+                            attempting = busy
+                        )
+                    }
+                    item {
+                        if (!binderReady) {
+                            TextButton(
+                                text = "Open Shizuku",
+                                onClick = {
+                                    addLog("[shizuku] opening Shizuku - start its server via wireless debugging, then come back")
+                                    openManager()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.textButtonColorsPrimary()
+                            )
+                        }
                     }
                     item {
                         TextButton(
                             text = when {
                                 busy -> runStage.ifBlank { "Running..." }
                                 runStage.isNotEmpty() -> runStage
-                                !binderReady -> "Shizuku not running (tap to open)"
+                                !binderReady -> "Shizuku not running - open it above"
                                 !authorized -> "Authorize Shizuku"
-                                rootedNow -> "Reboot required (already ran)"
+                                runDoneThisBoot() -> "Reboot required (already ran)"
                                 else -> "One-tap jailbreak"
                             },
                             onClick = {
@@ -486,7 +502,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = if (rootedNow) ButtonDefaults.textButtonColors(
+                            colors = if (runDoneThisBoot()) ButtonDefaults.textButtonColors(
                                 color = COUITheme.colorScheme.errorContainer,
                                 textColor = COUITheme.colorScheme.onErrorContainer
                             ) else ButtonDefaults.textButtonColorsPrimary()
@@ -609,7 +625,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun StatusCard(granted: Boolean, rooted: Boolean) {
+    private fun StatusCard(granted: Boolean, rooted: Boolean, attempting: Boolean) {
         val green = if (isSystemInDarkTheme()) Color(0xFF1A3825) else Color(0xFFDFFAE4)
         val greenTint = Color(0xFF36D167)
         Card(
@@ -645,6 +661,7 @@ class MainActivity : ComponentActivity() {
                     Column {
                         Text(
                             text = if (!granted) "Shizuku not connected"
+                            else if (attempting) "Jailbreak attempt running..."
                             else if (rooted) "Jailbreak active this boot"
                             else "Shizuku connected",
                             fontSize = 22.sp,
@@ -652,7 +669,8 @@ class MainActivity : ComponentActivity() {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = if (!granted) "Start and authorize Shizuku via wireless debugging / ADB"
+                            text = if (!granted) "Start and authorize Shizuku via wireless debugging / ADB - the manual and log tabs work without it"
+                            else if (attempting) "The exploit is running; the status updates when the run ends"
                             else if (rooted) "Root is live until the next reboot; rerun is blocked"
                             else "Shell user service ready; jailbreak can be attempted",
                             fontSize = 15.sp
@@ -1581,13 +1599,26 @@ class MainActivity : ComponentActivity() {
 
     private fun markRunBoot() {
         val boot = bootCount()
-        if (boot >= 0) prefs.edit().putInt("run_boot", boot).apply()
+        if (boot >= 0) prefs.edit().putInt("run_boot", boot).remove("run_ok_boot").apply()
         refreshRunDone()
     }
 
-    /* v4: push the persisted run flag into Compose state. */
+    /* v9: persist that this boot's run actually reached root. */
+    private fun markRunOk() {
+        val boot = bootCount()
+        if (boot >= 0) prefs.edit().putInt("run_ok_boot", boot).apply()
+    }
+
+    /* v4/v9: push the persisted run flags into Compose state. rootedNow
+     * means "a run reached root this boot" (run_ok_boot), not merely
+     * "a run happened" - a failed attempt must not show as active. */
     private fun refreshRunDone() {
-        rootedNow = runDoneThisBoot()
+        rootedNow = runSucceededThisBoot()
+    }
+
+    private fun runSucceededThisBoot(): Boolean {
+        val boot = bootCount()
+        return boot >= 0 && prefs.getInt("run_ok_boot", -1) == boot
     }
 
     private fun runCore() {
@@ -2675,6 +2706,7 @@ class MainActivity : ComponentActivity() {
                 else -> "Failed (exit=$rc)"
             }
             busy = false
+            if (rootConfirmed) markRunOk()
             refreshRunDone()
             refreshStaticState()
             if (rootConfirmed && !managerOpenedThisRun) {
