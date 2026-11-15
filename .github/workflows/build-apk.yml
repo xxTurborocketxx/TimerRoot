@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IC_KEYSTORE_BASE64: ${{ secrets.IC_KEYSTORE_BASE64 }}
+      IC_STORE_PASSWORD: ${{ secrets.IC_STORE_PASSWORD }}
+      IC_KEY_ALIAS: ${{ secrets.IC_KEY_ALIAS }}
+      IC_KEY_PASSWORD: ${{ secrets.IC_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,24 +39,22 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools"
 
-      # The repository keeps a local-only aapt2 path for the author's machine;
-      # CI resolves aapt2 from Maven instead.
-      - name: Drop local aapt2 override
-        run: sed -i '/aapt2FromMavenOverride/d' apk-gradle/gradle.properties
-
-      # Optional: add IC_KEYSTORE_BASE64 (base64 of a .jks) to repository
-      # secrets to get a signed release APK. Without it the release artifact
-      # is unsigned; the debug APK is always installable.
+      # Optional: set the four repository secrets (IC_KEYSTORE_BASE64 =
+      # base64 of a .jks, plus store password, key alias and key password)
+      # to get a properly signed release APK. Without them the release
+      # artifact falls back to debug signing.
       - name: Decode signing keystore
         if: env.IC_KEYSTORE_BASE64 != ''
         run: echo "$IC_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ic.keystore"
 
-      - name: Build APKs
+      - name: Test and build APKs
         working-directory: apk-gradle
         run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleRelease :app:assembleDebug --no-daemon \
-            -Pic.keystore="$RUNNER_TEMP/ic.keystore"
+          KEYSTORE_ARGS=""
+          if [ -n "$IC_KEYSTORE_BASE64" ]; then
+            KEYSTORE_ARGS="-Pic.keystore=$RUNNER_TEMP/ic.keystore -Pic.storePassword=$IC_STORE_PASSWORD -Pic.keyAlias=$IC_KEY_ALIAS -Pic.keyPassword=$IC_KEY_PASSWORD"
+          fi
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease :app:assembleDebug --no-daemon $KEYSTORE_ARGS
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

@@ -52,7 +52,10 @@ android {
             signingConfig = if (keystoreFile.exists()) {
                 signingConfigs.getByName("local")
             } else {
-                null
+                /* No release keystore available (local build without the
+                 * author's D: path, CI without the secret): fall back to
+                 * debug signing so the artifact stays installable. */
+                signingConfigs.getByName("debug")
             }
         }
     }
