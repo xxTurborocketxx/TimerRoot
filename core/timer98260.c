@@ -3217,25 +3217,13 @@ int main(int argc, char **argv)
                 g_selinux_link = tab->link[IC_ANCHOR_N - 3];
                 if (!g_init_user_ns_link)
                     g_init_user_ns_link = tab->link[IC_ANCHOR_N - 2];
-                /* The fake-cred objects live at fixed offsets from
-                 * init_user_ns in every build we could verify against an
-                 * image (16.1.11.0, 16.2.11, 16.2.12.0, 16.2.20.7/21.1):
-                 *   root_user    = ns + 0x298
-                 *   init_ucounts = ns + 0x1b48
-                 *   init_groups  = ns + 0x15b8
-                 * Every anchor table carries init_user_ns, so this covers
-                 * builds we never had an image for (deriving a wrong value
-                 * only makes prepare_creds fail with ENOMEM, not panic). */
-                if (!g_root_user_link && g_init_user_ns_link)
-                    g_root_user_link = g_init_user_ns_link + 0x298;
-                if (!g_init_ucounts_link && g_init_user_ns_link)
-                    g_init_ucounts_link = g_init_user_ns_link + 0x1b48;
-                if (!g_init_groups_link && g_init_user_ns_link)
-                    g_init_groups_link = g_init_user_ns_link + 0x15b8;
-                if (!g_init_cred_link)
-                    g_init_cred_link = tab->link[IC_ANCHOR_N - 1];
-                /* Fill the fake-cred objects the anchor tables lack, when
-                 * this build's image was available offline. */
+                /* Exact per-build values from ic_extra_syms_tab win over
+                 * the fixed-offset derivation below: the GKI 6.1.157
+                 * user_namespace layout differs from the vivo 6.1.145 one
+                 * (ctwo A171SUVH.42-20-1: root_user = ns + 0x290,
+                 * init_ucounts = ns + 0x1b18, init_groups = ns + 0x15b0),
+                 * and read_syms_file only fills empty slots, so a wrong
+                 * derivation could never be corrected afterwards. */
                 {
                     size_t ei;
 
@@ -3257,6 +3245,24 @@ int main(int argc, char **argv)
                         break;
                     }
                 }
+                /* Fallback for tables without an ic_extra_syms entry: the
+                 * fake-cred objects live at fixed offsets from init_user_ns
+                 * in every vivo build we could verify against an image
+                 * (16.1.11.0, 16.2.11, 16.2.12.0, 16.2.20.7/21.1):
+                 *   root_user    = ns + 0x298
+                 *   init_ucounts = ns + 0x1b48
+                 *   init_groups  = ns + 0x15b8
+                 * Every anchor table carries init_user_ns, so this covers
+                 * builds we never had an image for (deriving a wrong value
+                 * only makes prepare_creds fail with ENOMEM, not panic). */
+                if (!g_root_user_link && g_init_user_ns_link)
+                    g_root_user_link = g_init_user_ns_link + 0x298;
+                if (!g_init_ucounts_link && g_init_user_ns_link)
+                    g_init_ucounts_link = g_init_user_ns_link + 0x1b48;
+                if (!g_init_groups_link && g_init_user_ns_link)
+                    g_init_groups_link = g_init_user_ns_link + 0x15b8;
+                if (!g_init_cred_link)
+                    g_init_cred_link = tab->link[IC_ANCHOR_N - 1];
             }
         }
         if (tab && (getenv("IC_FORCE_ANCHORS") ||

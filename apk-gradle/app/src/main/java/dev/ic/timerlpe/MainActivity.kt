@@ -1273,25 +1273,30 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The chain was only validated on vivo/iQOO 6.1.145 kernels.  Anything
-     * else gets a startup notice (not a hard block): the tool still runs, but
-     * the user is told the result is not expected to be meaningful.
+     * The chain was validated on vivo/iQOO 6.1.145 kernels and on the
+     * Motorola Edge 50 Ultra (ctwo) GKI 6.1.157 kernel, whose offsets are
+     * built into the core (anchor table ctwo_4220_links for build
+     * A171SUVH.42-20-1).  Anything else gets a startup notice (not a
+     * hard block): the tool still runs, but the user is told the result
+     * is not expected to be meaningful.
      */
     private fun checkDeviceAndKernel() {
         val brand = getSystemProperty("ro.product.brand")
         val manufacturer = getSystemProperty("ro.product.manufacturer")
         val vendor = "$brand $manufacturer".lowercase()
         val isVivo = vendor.contains("vivo") || vendor.contains("iqoo")
-        val kernelOk = kernelVersion.contains("6.1.145")
-        if (isVivo && kernelOk) return
+        val isMoto = vendor.contains("motorola")
+        val kernelOk = kernelVersion.contains("6.1.145") || (isMoto && kernelVersion.contains("6.1.157"))
+        if ((isVivo || isMoto) && kernelOk) return
         val reasons = buildList {
-            if (!isVivo) add("Not a vivo / iQOO device (${brand.ifBlank { manufacturer }})")
-            if (!kernelOk) add("Kernel is not 6.1.145 ($kernelVersion)")
+            if (!isVivo && !isMoto)
+                add("Not a vivo / iQOO / Motorola device (${brand.ifBlank { manufacturer }})")
+            if (!kernelOk) add("Kernel is not supported ($kernelVersion)")
         }
         notice = Notice(
             "Device notice",
             buildString {
-                append("This tool only fits vivo / iQOO models with kernel 6.1.145.\n\n")
+                append("This tool only fits vivo / iQOO models with kernel 6.1.145 or the Motorola Edge 50 Ultra with kernel 6.1.157.\n\n")
                 append("Detected:\n· ")
                 append(reasons.joinToString("\n· "))
                 append("\n\nYou can still continue, but privilege escalation will most likely fail, ")

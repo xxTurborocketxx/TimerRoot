@@ -42,9 +42,16 @@ live jailbreak status).
 - PD2339 / V2339: 16.2.13.1
 - PD2309 / V2309: 16.2.15.0
 - PD2445 / V2445: 16.1.16.0
+- Motorola Edge 50 Ultra (ctwo): A171SUVH.42-20-1 (kernel 6.1.157)
 
 Models in this list have all the object addresses needed for the KSU handoff
 built in — no parsing required.
+
+Motorola Edge 50 Ultra (ctwo, GKI kernel 6.1.157): build A171SUVH.42-20-1 is
+fully built in — the tool works straight after a factory reset, with no
+ic-syms.txt present. After an OTA / firmware update the built-in entry no
+longer matches the new build: delete a stale ic-syms.txt and tap "Parse
+offsets" once with the new boot.img.
 
 ## Parse offsets (builds outside the list)
 
@@ -56,7 +63,7 @@ package (.zip)**:
   inside the package are compared against the current phone first; a
   mismatch is refused outright;
 - `init_boot` / `vendor_boot` contain no kernel and are refused;
-- A kernel image that is not 6.1.145 is also refused;
+- A kernel image that is neither 6.1.145 nor 6.1.157 (Edge 50 Ultra GKI) is also refused;
 - On success, `/data/local/tmp/ic-syms.txt` is generated; afterwards tap
   one-tap jailbreak.
 
