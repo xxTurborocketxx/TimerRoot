@@ -183,6 +183,14 @@ class MainActivity : ComponentActivity() {
     private var missPrompt by mutableStateOf(false)
     private var missHold = false
     private var rerunPrompt by mutableStateOf(false)
+    /* v4: Compose-visible mirror of the persisted run flag. A
+     * SharedPreferences read is not tracked state, so the status
+     * card stayed stale until the app restarted; the mirror is
+     * refreshed at every entry point (resume, run start, run end). */
+    private var rootedNow by mutableStateOf(false)
+    /* v4: one-shot guards so auto-opening never fights the user. */
+    private var autoOpenedShizuku = false
+    private var managerOpenedThisRun = false
     private var notice by mutableStateOf<Notice?>(null)
     private var parseMenu by mutableStateOf(false)
     private var otaUrlPrompt by mutableStateOf(false)
@@ -348,6 +356,12 @@ class MainActivity : ComponentActivity() {
         refreshAuth()
         if (authorized && !bound) bindUserService()
         refreshStaticState()
+        refreshRunDone()
+        if (!binderReady && !autoOpenedShizuku) {
+            autoOpenedShizuku = true
+            addLog("[i] Shizuku is not running - opening it; start its server, then come back")
+            openManager()
+        }
     }
 
     /* ------------------------------------------------------------------ */
@@ -421,7 +435,7 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        StatusCard(granted = binderReady && authorized && bound, rooted = runDoneThisBoot())
+                        StatusCard(granted = binderReady && authorized && bound, rooted = rootedNow)
                     }
                     item {
                         TextButton(
@@ -430,7 +444,7 @@ class MainActivity : ComponentActivity() {
                                 runStage.isNotEmpty() -> runStage
                                 !binderReady -> "Shizuku not running (tap to open)"
                                 !authorized -> "Authorize Shizuku"
-                                runDoneThisBoot() -> "Reboot required (already ran)"
+                                rootedNow -> "Reboot required (already ran)"
                                 else -> "One-tap jailbreak"
                             },
                             onClick = {
@@ -448,7 +462,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = if (runDoneThisBoot()) ButtonDefaults.textButtonColors(
+                            colors = if (rootedNow) ButtonDefaults.textButtonColors(
                                 color = COUITheme.colorScheme.errorContainer,
                                 textColor = COUITheme.colorScheme.onErrorContainer
                             ) else ButtonDefaults.textButtonColorsPrimary()
@@ -1253,6 +1267,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /* v4: after a successful run the spoofed manager cannot be brought
+     * up by the core (its "am start" fails), so launch it from here
+     * instead of leaving the user to find it manually. */
+    private fun openKsuManager() {
+        val selected = KSU_PKGS[ksuIndex]
+        val pkg = (if (selected.isNotEmpty()) listOf(selected) else emptyList())
+            .plus(KSU_PKGS.filter { it.isNotEmpty() })
+            /* The installed manager is the spoof build under a
+     * randomized package id that intentionally is not part of
+     * the dropdown list; try it last. */
+            .plus(listOf("kqvdie.zeykvw.hpbcyd"))
+            .firstOrNull { packageManager.getLaunchIntentForPackage(it) != null }
+            ?: return
+        addLogOnMain("[i] opening the ROOT manager ($pkg) - root is live")
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent != null) runCatching { startActivity(intent) }
+    }
+
     private fun refreshStaticState() {
         lifecycleScope.launch {
             val selinux = withContext(Dispatchers.IO) {
@@ -1370,6 +1403,12 @@ class MainActivity : ComponentActivity() {
     private fun markRunBoot() {
         val boot = bootCount()
         if (boot >= 0) prefs.edit().putInt("run_boot", boot).apply()
+        refreshRunDone()
+    }
+
+    /* v4: push the persisted run flag into Compose state. */
+    private fun refreshRunDone() {
+        rootedNow = runDoneThisBoot()
     }
 
     private fun runCore() {
@@ -1391,6 +1430,7 @@ class MainActivity : ComponentActivity() {
 
         busy = true
         rootConfirmed = false
+        managerOpenedThisRun = false
         runStageIndex = 0
         runStage = "1/${RUN_STAGES.size} ${RUN_STAGES.first().first}"
         runStamp = stamp
@@ -2443,7 +2483,12 @@ class MainActivity : ComponentActivity() {
                 else -> "Failed (exit=$rc)"
             }
             busy = false
+            refreshRunDone()
             refreshStaticState()
+            if (rootConfirmed && !managerOpenedThisRun) {
+                managerOpenedThisRun = true
+                openKsuManager()
+            }
             // Keep the outcome on the button for a moment, then go back idle.
             lifecycleScope.launch {
                 delay(4000)
