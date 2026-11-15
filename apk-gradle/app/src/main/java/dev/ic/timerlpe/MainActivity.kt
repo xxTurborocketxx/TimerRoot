@@ -415,7 +415,7 @@ class MainActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item {
-                        StatusCard(granted = binderReady && authorized && bound)
+                        StatusCard(granted = binderReady && authorized && bound, rooted = runDoneThisBoot())
                     }
                     item {
                         TextButton(
@@ -442,7 +442,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.textButtonColorsPrimary()
+                            colors = if (runDoneThisBoot()) ButtonDefaults.textButtonColors(
+                                color = COUITheme.colorScheme.errorContainer,
+                                textColor = COUITheme.colorScheme.onErrorContainer
+                            ) else ButtonDefaults.textButtonColorsPrimary()
                         )
                     }
                     item {
@@ -576,7 +579,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun StatusCard(granted: Boolean) {
+    private fun StatusCard(granted: Boolean, rooted: Boolean) {
         val green = if (isSystemInDarkTheme()) Color(0xFF1A3825) else Color(0xFFDFFAE4)
         val greenTint = Color(0xFF36D167)
         Card(
@@ -611,14 +614,17 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Column {
                         Text(
-                            text = if (granted) "Shizuku connected" else "Shizuku not connected",
+                            text = if (!granted) "Shizuku not connected"
+                            else if (rooted) "Jailbreak active this boot"
+                            else "Shizuku connected",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = if (granted) "Shell user service ready; jailbreak can be attempted"
-                            else "Start and authorize Shizuku via wireless debugging / ADB",
+                            text = if (!granted) "Start and authorize Shizuku via wireless debugging / ADB"
+                            else if (rooted) "Root is live until the next reboot; rerun is blocked"
+                            else "Shell user service ready; jailbreak can be attempted",
                             fontSize = 15.sp
                         )
                     }
@@ -2303,7 +2309,12 @@ class MainActivity : ComponentActivity() {
         if (cut < 0) return
         val complete = partialLine.substring(0, cut)
         partialLine.delete(0, cut + 1)
-        complete.split('\n').forEach { line ->
+        complete.split('\n').forEach { line0 ->
+            val line =
+                if (line0.contains("am start failed; handoff incomplete") ||
+                    line0.contains("am force-stop failed"))
+                    "[i] manager autostart skipped (spoofed manager; open it yourself - root is live)"
+                else line0
             if (line.isNotEmpty()) {
                 logs.add(line)
                 updateStage(line)
@@ -2327,6 +2338,7 @@ class MainActivity : ComponentActivity() {
                 else -> "Failed (exit=$rc)"
             }
             busy = false
+            refreshStaticState()
             // Keep the outcome on the button for a moment, then go back idle.
             lifecycleScope.launch {
                 delay(4000)
@@ -2374,7 +2386,7 @@ class MainActivity : ComponentActivity() {
             "Escalate uid" to listOf("stage fake_uid"),
             "Escalate euid" to listOf("stage fake_euid"),
             "Run payload" to listOf("exec payload", "[fullshell]", "plant verified"),
-            "Done" to listOf("handoff OK", "ROOT_SHELL_OK"),
+            "Done" to listOf("handoff OK", "ROOT_SHELL_OK", "LPE-PROOF", "module resident"),
         )
 
         /* Log lines that prove root was reached, whatever the final exit
