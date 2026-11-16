@@ -150,7 +150,7 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.channels.FileChannel
 
-private const val PROJECT_URL = "https://github.com/kzktor/ic-timer-lpe"
+private const val PROJECT_URL = "https://github.com/xxTurborocketxx/ic-timer-lpe"
 private const val XDA_URL = "https://xdaforums.com/t/tool-timerroot-one-tap-root-for-motorola-edge-50-ultra-no-bootloader-unlock-vivo-iqoo.4808957/"
 
 private data class LicenseText(
@@ -975,7 +975,17 @@ class MainActivity : ComponentActivity() {
                                     color = COUITheme.colorScheme.onSurfaceVariantSummary
                                 )
                                 Text(
-                                    text = "This software is free and open source, by Coolapk @散花神木 (Sanhua Shenmu)",
+                                    text = "This software is free and open source",
+                                    fontSize = 13.sp,
+                                    color = COUITheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Text(
+                                    text = "by Coolapk @散花神木 (Sanhua Shenmu)",
+                                    fontSize = 13.sp,
+                                    color = COUITheme.colorScheme.onSurfaceVariantSummary
+                                )
+                                Text(
+                                    text = "Edge 50 Ultra port by TurboRCT",
                                     fontSize = 13.sp,
                                     color = COUITheme.colorScheme.onSurfaceVariantSummary
                                 )
@@ -2797,8 +2807,8 @@ class MainActivity : ComponentActivity() {
 
         private val licenseItems = listOf(
             LicenseItem(
-                name = "IC Timer LPE (this project)",
-                author = "kzktor/ic-timer-lpe, by Coolapk @散花神木 (Sanhua Shenmu)",
+                name = "TimerRoot (this project)",
+                author = "Edge 50 Ultra port by TurboRCT; upstream kzktor/ic-timer-lpe, by Coolapk @散花神木 (Sanhua Shenmu)",
                 website = PROJECT_URL,
                 licenses = listOf(LicenseText("GPL-3.0", asset = "licenses/GPL-3.0.txt"))
             ),
