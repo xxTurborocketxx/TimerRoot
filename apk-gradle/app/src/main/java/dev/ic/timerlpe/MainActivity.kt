@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Tune
@@ -106,6 +107,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -333,6 +337,7 @@ class MainActivity : ComponentActivity() {
             val upd = runCatching { Updater.fetchLatest() }.getOrNull()
             if (upd != null) postUi {
                 latestSeen = upd.version
+                latestNotes = upd.notes
                 if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version) &&
                     prefs.getString("update_skip_tag", null) != upd.tag
                 ) updatePrompt = upd
@@ -376,6 +381,7 @@ class MainActivity : ComponentActivity() {
                         NoticeDialog()
                         UpdateDialog()
                         UpdateMismatchDialog()
+                        ChangelogDialog()
                         DonateDialog(show = showDonate, onDismiss = { showDonate = false })
                         AnimatedVisibility(
                             visible = showManual,
@@ -1086,6 +1092,25 @@ class MainActivity : ComponentActivity() {
                                     startAction = {
                                         Icon(
                                             imageVector = Icons.Filled.SystemUpdate,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                            tint = COUITheme.colorScheme.onBackground
+                                        )
+                                    }
+                                )
+                                HorizontalDivider()
+                                ArrowPreference(
+                                    title = "What's new",
+                                    summary = when {
+                                        latestSeen != null ->
+                                            "Latest release: v$latestSeen - tap for the notes"
+                                        else ->
+                                            "Tap to fetch the latest release notes"
+                                    },
+                                    onClick = { manualChangelogCheck() },
+                                    startAction = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Notes,
                                             contentDescription = null,
                                             modifier = Modifier.padding(end = 6.dp),
                                             tint = COUITheme.colorScheme.onBackground
@@ -2552,6 +2577,8 @@ class MainActivity : ComponentActivity() {
     private var updateMismatch by mutableStateOf<Updater.UpdateInfo?>(null)
     private var latestSeen by mutableStateOf<String?>(null)
     private var updateChecking by mutableStateOf(false)
+    private var latestNotes by mutableStateOf<String?>(null)
+    private var changelogPrompt by mutableStateOf<String?>(null)
 
     @Composable
     private fun UpdateDialog() {
@@ -2572,6 +2599,11 @@ class MainActivity : ComponentActivity() {
                             "as the installed app.",
                         fontSize = 13.sp
                     )
+                    if (!upd?.notes.isNullOrBlank()) {
+                        Text("What's new:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        NotesText(upd.notes)
+                    }
                     Spacer(Modifier.height(16.dp))
                     if (updateProgress.isNotEmpty()) {
                         Text(updateProgress, fontSize = 13.sp)
@@ -2760,6 +2792,7 @@ class MainActivity : ComponentActivity() {
                     ).show()
                 } else {
                     latestSeen = upd.version
+                    latestNotes = upd.notes
                     if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version)) {
                         updatePrompt = upd
                     } else {
@@ -2768,6 +2801,99 @@ class MainActivity : ComponentActivity() {
                             "TimerRoot is up to date (${BuildConfig.VERSION_NAME})",
                             Toast.LENGTH_SHORT
                         ).show()
+                    }
+                }
+            }
+        }
+    }
+
+    /* v16d: release notes with tappable links - the GitHub release body
+     * carries URLs (the full-changelog compare link) that plain text alone
+     * would leave inert. */
+    @Composable
+    private fun NotesText(text: String) {
+        val linkColor = COUITheme.colorScheme.primary
+        val annotated = remember(text, linkColor) {
+            buildAnnotatedString {
+                append(text)
+                for (m in Regex("https?://[^ ]+").findAll(text)) {
+                    val url = m.value.trimEnd('.', ')', ',', ';')
+                    addLink(
+                        LinkAnnotation.Url(
+                            url,
+                            TextLinkStyles(
+                                SpanStyle(
+                                    color = linkColor,
+                                    textDecoration = TextDecoration.Underline
+                                )
+                            )
+                        ),
+                        m.range.first,
+                        m.range.first + url.length
+                    )
+                }
+            }
+        }
+        SelectionContainer {
+            Text(annotated, fontSize = 12.sp)
+        }
+    }
+
+    @Composable
+    private fun ChangelogDialog() {
+        val notes = changelogPrompt
+        OverlayDialog(
+            show = notes != null,
+            title = "What's new",
+            onDismissRequest = { changelogPrompt = null },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    NotesText(notes ?: "")
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Got it",
+                        onClick = { changelogPrompt = null },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
+            }
+        )
+    }
+
+    /* v16: show the latest release's notes on demand; the silent startup
+     * check usually already filled latestNotes, so this is instant. */
+    private fun manualChangelogCheck() {
+        val cached = latestNotes
+        if (!cached.isNullOrBlank()) {
+            changelogPrompt = cached
+            return
+        }
+        if (updateChecking) return
+        updateChecking = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            postUi {
+                updateChecking = false
+                if (upd == null) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Could not load the release notes - offline or rate-limited",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    latestSeen = upd.version
+                    latestNotes = upd.notes
+                    if (upd.notes.isBlank()) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "The latest release has no notes",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        changelogPrompt = upd.notes
                     }
                 }
             }

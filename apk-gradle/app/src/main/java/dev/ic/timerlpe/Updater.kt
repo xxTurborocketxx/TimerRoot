@@ -15,7 +15,7 @@ object Updater {
     const val LATEST_API =
         "https://api.github.com/repos/xxTurborocketxx/ic-timer-lpe/releases/latest"
 
-    class UpdateInfo(val tag: String, val version: String, val url: String, val size: Long)
+    class UpdateInfo(val tag: String, val version: String, val url: String, val size: Long, val notes: String)
 
     /** Fetch the latest release; null means offline, rate-limited or the
      * release has no APK asset. */
@@ -48,11 +48,24 @@ object Updater {
                 tag = tag,
                 version = tag.removePrefix("v"),
                 url = url,
-                size = asset.optLong("size", 0L)
+                size = asset.optLong("size", 0L),
+                notes = plainNotes(obj.optString("body", ""))
             )
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** Trim the release body's markdown down to readable plain text. */
+    private fun plainNotes(body: String): String {
+        val cleaned = body.lines().joinToString("\n") { raw ->
+            raw.trim()
+                .trimStart { it == '#' }
+                .replace("**", "")
+                .replace("__", "")
+                .replace("`", "")
+        }.trim()
+        return if (cleaned.length > 1200) cleaned.take(1200).trimEnd() + "..." else cleaned
     }
 
     /** Dotted-numeric comparison: 0.26.0 < 0.26.1 < 0.27.0. */
