@@ -2,6 +2,7 @@ package dev.ic.timerlpe
 
 import android.content.Context
 import android.content.pm.PackageManager
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -14,13 +15,16 @@ import java.net.URL
 object Updater {
     const val LATEST_API =
         "https://api.github.com/repos/xxTurborocketxx/ic-timer-lpe/releases/latest"
+    const val BETA_API =
+        "https://api.github.com/repos/xxTurborocketxx/ic-timer-lpe/releases?per_page=20"
 
-    class UpdateInfo(val tag: String, val version: String, val url: String, val size: Long, val notes: String)
+    class UpdateInfo(val tag: String, val version: String, val url: String, val size: Long, val notes: String, val prerelease: Boolean)
 
     /** Fetch the latest release; null means offline, rate-limited or the
-     * release has no APK asset. */
-    fun fetchLatest(): UpdateInfo? {
-        val conn = URL(LATEST_API).openConnection() as HttpURLConnection
+     * release has no APK asset.  With beta=true the search also covers
+     * GitHub prereleases (tags like v0.27.1) and picks the newest version. */
+    fun fetchLatest(beta: Boolean = false): UpdateInfo? {
+        val conn = URL(if (beta) BETA_API else LATEST_API).openConnection() as HttpURLConnection
         conn.connectTimeout = 10000
         conn.readTimeout = 10000
         conn.instanceFollowRedirects = true
@@ -29,31 +33,44 @@ object Updater {
         try {
             if (conn.responseCode != 200) return null
             val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val obj = JSONObject(body)
-            val tag = obj.optString("tag_name", "")
-            if (tag.isEmpty()) return null
-            val arr = obj.optJSONArray("assets") ?: return null
-            var asset: JSONObject? = null
+            if (!beta) return parseRelease(JSONObject(body))
+            val arr = JSONArray(body)
+            var best: UpdateInfo? = null
             for (i in 0 until arr.length()) {
-                val a = arr.getJSONObject(i)
-                if (a.optString("name", "").endsWith(".apk")) {
-                    asset = a
-                    break
-                }
+                val cand = parseRelease(arr.getJSONObject(i)) ?: continue
+                if (best == null || isNewer(best.version, cand.version)) best = cand
             }
-            asset ?: return null
-            val url = asset.optString("browser_download_url", "")
-            if (url.isEmpty()) return null
-            return UpdateInfo(
-                tag = tag,
-                version = tag.removePrefix("v"),
-                url = url,
-                size = asset.optLong("size", 0L),
-                notes = plainNotes(obj.optString("body", ""))
-            )
+            return best
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** Turn one GitHub release object into an UpdateInfo; null when the
+     * release has no tag or no APK asset. */
+    private fun parseRelease(obj: JSONObject): UpdateInfo? {
+        val tag = obj.optString("tag_name", "")
+        if (tag.isEmpty()) return null
+        val arr = obj.optJSONArray("assets") ?: return null
+        var asset: JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val a = arr.getJSONObject(i)
+            if (a.optString("name", "").endsWith(".apk")) {
+                asset = a
+                break
+            }
+        }
+        asset ?: return null
+        val url = asset.optString("browser_download_url", "")
+        if (url.isEmpty()) return null
+        return UpdateInfo(
+            tag = tag,
+            version = tag.removePrefix("v"),
+            url = url,
+            size = asset.optLong("size", 0L),
+            notes = plainNotes(obj.optString("body", "")),
+            prerelease = obj.optBoolean("prerelease", false)
+        )
     }
 
     /** Trim the release body's markdown down to readable plain text. */
@@ -79,6 +96,11 @@ object Updater {
         }
         return false
     }
+
+    /** Channel label from the GitHub prerelease flag: releases marked
+     * as prerelease on GitHub are beta builds, everything else stable. */
+    fun channelOf(prerelease: Boolean): String =
+        if (prerelease) "beta" else "stable"
 
     /** Stream the APK into dest; reports progress as (bytes, total). */
     fun download(url: String, dest: File, onProgress: (Long, Long) -> Unit) {

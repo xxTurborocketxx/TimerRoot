@@ -76,6 +76,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -326,6 +327,7 @@ class MainActivity : ComponentActivity() {
         refreshAuth()
         ksuIndex = prefs.getInt("ksu_index", 0).coerceIn(0, KSU_NAMES.lastIndex)
         safeMode = prefs.getBoolean("safe_mode", false)
+        betaChannel = prefs.getBoolean("beta_channel", false)
         kernelVersion = runCatching { android.system.Os.uname().release }.getOrDefault("Unknown")
         deviceModel = resolveDeviceName()
         refreshStaticState()
@@ -334,9 +336,11 @@ class MainActivity : ComponentActivity() {
         /* v15: silent update check against the latest GitHub release; the
          * dialog only appears for a newer version that was not skipped. */
         lifecycleScope.launch(Dispatchers.IO) {
-            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            val upd = runCatching { Updater.fetchLatest(betaChannel) }.getOrNull()
             if (upd != null) postUi {
                 latestSeen = upd.version
+                latestPrerelease = upd.prerelease
+                if (upd.version == BuildConfig.VERSION_NAME) installedPrerelease = upd.prerelease
                 latestNotes = upd.notes
                 if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version) &&
                     prefs.getString("update_skip_tag", null) != upd.tag
@@ -1084,7 +1088,7 @@ class MainActivity : ComponentActivity() {
                                     summary = when {
                                         updateChecking -> "Checking..."
                                         latestSeen != null ->
-                                            "Current ${BuildConfig.VERSION_NAME} - latest $latestSeen"
+                                            "Current ${BuildConfig.VERSION_NAME}${channelTag(installedPrerelease)} - latest $latestSeen${channelTag(latestPrerelease)}"
                                         else ->
                                             "Current ${BuildConfig.VERSION_NAME} - check GitHub for a newer release"
                                     },
@@ -1099,11 +1103,28 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                                 HorizontalDivider()
+                                SwitchPreference(
+                                    title = "Beta channel",
+                                    checked = betaChannel,
+                                    onCheckedChange = {
+                                        betaChannel = it
+                                        prefs.edit().putBoolean("beta_channel", it).apply()
+                                    },
+                                    startAction = {
+                                        Icon(
+                                            imageVector = Icons.Filled.RocketLaunch,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                            tint = COUITheme.colorScheme.onBackground
+                                        )
+                                    }
+                                )
+                                HorizontalDivider()
                                 ArrowPreference(
                                     title = "What's new",
                                     summary = when {
                                         latestSeen != null ->
-                                            "Latest release: v$latestSeen - tap for the notes"
+                                            "Latest release: v$latestSeen${channelTag(latestPrerelease)} - tap for the notes"
                                         else ->
                                             "Tap to fetch the latest release notes"
                                     },
@@ -2576,6 +2597,9 @@ class MainActivity : ComponentActivity() {
     private var updateProgress by mutableStateOf("")
     private var updateMismatch by mutableStateOf<Updater.UpdateInfo?>(null)
     private var latestSeen by mutableStateOf<String?>(null)
+    private var latestPrerelease by mutableStateOf<Boolean?>(null)
+    private var installedPrerelease by mutableStateOf<Boolean?>(null)
+    private var betaChannel by mutableStateOf(false)
     private var updateChecking by mutableStateOf(false)
     private var latestNotes by mutableStateOf<String?>(null)
     private var changelogPrompt by mutableStateOf<String?>(null)
@@ -2592,7 +2616,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
                     Text(
-                        "TimerRoot ${upd?.version} is available (installed: " +
+                        "TimerRoot ${upd?.version}${channelTag(upd?.prerelease)} is available (installed: " +
                             "${BuildConfig.VERSION_NAME})\n\n" +
                             "The APK is downloaded from the GitHub release and " +
                             "installed only when it is signed with the same key " +
@@ -2777,11 +2801,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /* v17c: channel label suffix - the channel comes from the GitHub
+     * prerelease flag of the release, not from the version shape. */
+    private fun channelTag(prerelease: Boolean?): String =
+        if (prerelease == null) "" else " (${Updater.channelOf(prerelease)})"
+
     private fun manualUpdateCheck() {
         if (updateChecking) return
         updateChecking = true
         lifecycleScope.launch(Dispatchers.IO) {
-            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            val upd = runCatching { Updater.fetchLatest(betaChannel) }.getOrNull()
             postUi {
                 updateChecking = false
                 if (upd == null) {
@@ -2792,13 +2821,15 @@ class MainActivity : ComponentActivity() {
                     ).show()
                 } else {
                     latestSeen = upd.version
+                    latestPrerelease = upd.prerelease
+                    if (upd.version == BuildConfig.VERSION_NAME) installedPrerelease = upd.prerelease
                     latestNotes = upd.notes
                     if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version)) {
                         updatePrompt = upd
                     } else {
                         Toast.makeText(
                             this@MainActivity,
-                            "TimerRoot is up to date (${BuildConfig.VERSION_NAME})",
+                            "TimerRoot is up to date ${BuildConfig.VERSION_NAME}${channelTag(installedPrerelease)}",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -2874,7 +2905,7 @@ class MainActivity : ComponentActivity() {
         if (updateChecking) return
         updateChecking = true
         lifecycleScope.launch(Dispatchers.IO) {
-            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            val upd = runCatching { Updater.fetchLatest(betaChannel) }.getOrNull()
             postUi {
                 updateChecking = false
                 if (upd == null) {
@@ -2885,6 +2916,8 @@ class MainActivity : ComponentActivity() {
                     ).show()
                 } else {
                     latestSeen = upd.version
+                    latestPrerelease = upd.prerelease
+                    if (upd.version == BuildConfig.VERSION_NAME) installedPrerelease = upd.prerelease
                     latestNotes = upd.notes
                     if (upd.notes.isBlank()) {
                         Toast.makeText(

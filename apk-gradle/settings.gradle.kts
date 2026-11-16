@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ic-timer-lpe"
+rootProject.name = "TimerRoot"
 include(":app")

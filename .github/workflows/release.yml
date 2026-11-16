@@ -43,11 +43,15 @@ jobs:
           [ -f "$APK" ] || APK="apk-gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
           cp "$APK" "TimerRoot-${GITHUB_REF_NAME}.apk"
           ls -l TimerRoot-*.apk
+      - name: Prerelease flag from the tag shape
+        id: relflag
+        run: echo "prerelease=$(echo "$GITHUB_REF_NAME" | awk -F. 'NF>=3 {print "true"}')" >> "$GITHUB_OUTPUT"
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: TimerRoot-*.apk
           generate_release_notes: true
+          prerelease: ${{ steps.relflag.outputs.prerelease == 'true' }}
           body: |
             ## What's new
 
