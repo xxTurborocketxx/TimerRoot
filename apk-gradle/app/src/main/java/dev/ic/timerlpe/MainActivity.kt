@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
@@ -77,6 +78,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.CheckCircleOutline
@@ -86,6 +88,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,17 +98,18 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import io.github.suqi8.coui.kmp.basic.ButtonDefaults
 import io.github.suqi8.coui.kmp.basic.COUIScrollBehavior
@@ -323,6 +327,17 @@ class MainActivity : ComponentActivity() {
         refreshStaticState()
         checkDeviceAndKernel()
         if (authorized && binderReady) bindUserService()
+        /* v15: silent update check against the latest GitHub release; the
+         * dialog only appears for a newer version that was not skipped. */
+        lifecycleScope.launch(Dispatchers.IO) {
+            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            if (upd != null) postUi {
+                latestSeen = upd.version
+                if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version) &&
+                    prefs.getString("update_skip_tag", null) != upd.tag
+                ) updatePrompt = upd
+            }
+        }
 
         setContent {
             val themeController = remember { ThemeController(colorSchemeMode = ColorSchemeMode.System) }
@@ -359,6 +374,8 @@ class MainActivity : ComponentActivity() {
                         ParseMenuDialog()
                         OtaUrlDialog()
                         NoticeDialog()
+                        UpdateDialog()
+                        UpdateMismatchDialog()
                         DonateDialog(show = showDonate, onDismiss = { showDonate = false })
                         AnimatedVisibility(
                             visible = showManual,
@@ -745,7 +762,8 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LogScreen(state: List<String>, backdrop: LayerBackdrop?) {
-        val clipboard = LocalClipboardManager.current
+        val clipboard = LocalClipboard.current
+        val clipScope = rememberCoroutineScope()
         Scaffold(
             topBar = {
                 BlurredBar(backdrop = backdrop) {
@@ -843,7 +861,11 @@ class MainActivity : ComponentActivity() {
                                 fontWeight = if (line.contains("========"))
                                     FontWeight.Bold else FontWeight.Normal,
                                 modifier = Modifier.clickable {
-                                    clipboard.setText(AnnotatedString(line))
+                                    clipScope.launch {
+                                        clipboard.setClipEntry(
+                                            ClipEntry(ClipData.newPlainText("log", line))
+                                        )
+                                    }
                                     Toast.makeText(
                                         this@MainActivity, "Copied", Toast.LENGTH_SHORT
                                     ).show()
@@ -1044,6 +1066,26 @@ class MainActivity : ComponentActivity() {
                                     startAction = {
                                         Icon(
                                             imageVector = Icons.Filled.Copyright,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                            tint = COUITheme.colorScheme.onBackground
+                                        )
+                                    }
+                                )
+                                HorizontalDivider()
+                                ArrowPreference(
+                                    title = "Check for updates",
+                                    summary = when {
+                                        updateChecking -> "Checking..."
+                                        latestSeen != null ->
+                                            "Current ${BuildConfig.VERSION_NAME} - latest $latestSeen"
+                                        else ->
+                                            "Current ${BuildConfig.VERSION_NAME} - check GitHub for a newer release"
+                                    },
+                                    onClick = { manualUpdateCheck() },
+                                    startAction = {
+                                        Icon(
+                                            imageVector = Icons.Filled.SystemUpdate,
                                             contentDescription = null,
                                             modifier = Modifier.padding(end = 6.dp),
                                             tint = COUITheme.colorScheme.onBackground
@@ -2499,6 +2541,237 @@ class MainActivity : ComponentActivity() {
                 }
             }
         )
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Updater (v15)                                                       */
+    /* ------------------------------------------------------------------ */
+
+    private var updatePrompt by mutableStateOf<Updater.UpdateInfo?>(null)
+    private var updateProgress by mutableStateOf("")
+    private var updateMismatch by mutableStateOf<Updater.UpdateInfo?>(null)
+    private var latestSeen by mutableStateOf<String?>(null)
+    private var updateChecking by mutableStateOf(false)
+
+    @Composable
+    private fun UpdateDialog() {
+        val upd = updatePrompt
+        OverlayDialog(
+            show = upd != null,
+            title = "Update available",
+            onDismissRequest = { if (updateProgress.isEmpty()) updatePrompt = null },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "TimerRoot ${upd?.version} is available (installed: " +
+                            "${BuildConfig.VERSION_NAME})\n\n" +
+                            "The APK is downloaded from the GitHub release and " +
+                            "installed only when it is signed with the same key " +
+                            "as the installed app.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    if (updateProgress.isNotEmpty()) {
+                        Text(updateProgress, fontSize = 13.sp)
+                    } else {
+                        TextButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = "Install now",
+                            onClick = { upd?.let(::installUpdate) },
+                            colors = ButtonDefaults.textButtonColorsPrimary()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = "Later",
+                            onClick = { updatePrompt = null }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = "Never remind me again",
+                            onClick = {
+                                prefs.edit().putString("update_skip_tag", upd?.tag).apply()
+                                updatePrompt = null
+                            }
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    @Composable
+    private fun UpdateMismatchDialog() {
+        val upd = updateMismatch
+        OverlayDialog(
+            show = upd != null,
+            title = "Signature mismatch",
+            onDismissRequest = { updateMismatch = null },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "The downloaded APK is signed with a different key " +
+                            "than the installed app, so it cannot install as " +
+                            "an update.\n\n" +
+                            "A fresh install wipes TimerRoot data, including " +
+                            "the one-run-per-boot lock - reboot before the " +
+                            "next ritual run after installing.\n\n" +
+                            "The APK was saved to Download/TimerRoot-${upd?.tag}.apk:\n\n" +
+                            "1. Tap Uninstall below and confirm.\n" +
+                            "2. Install the saved APK from your file manager " +
+                            "(or adb install).\n" +
+                            "3. Reboot, then run the ritual as usual.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Uninstall",
+                        onClick = {
+                            updateMismatch = null
+                            runCatching {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_DELETE,
+                                        Uri.parse("package:$packageName")
+                                    )
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Cancel",
+                        onClick = { updateMismatch = null }
+                    )
+                }
+            }
+        )
+    }
+
+    /* Download the release APK into the cache dir, compare signatures and
+     * either hand it to the system installer (same key) or fall back to
+     * the guided uninstall/reinstall flow (different key - only possible
+     * for pre-v0.26.0 debug builds; since then debug and release share
+     * the keystore). */
+    private fun installUpdate(upd: Updater.UpdateInfo) {
+        val file = File(cacheDir, "updates/TimerRoot-${upd.tag}.apk")
+        if (file.isFile && upd.size > 0 && file.length() == upd.size) {
+            afterDownload(upd, file)
+            return
+        }
+        updateProgress = "Downloading..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val ok = runCatching {
+                Updater.download(upd.url, file) { done, total ->
+                    postUi {
+                        updateProgress = if (total > 0)
+                            "Downloading... ${done * 100 / total} %"
+                        else
+                            "Downloading... ${done / (1024 * 1024)} MB"
+                    }
+                }
+            }.isSuccess
+            postUi {
+                updateProgress = ""
+                if (!ok) {
+                    updatePrompt = null
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Download failed - check the connection",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    afterDownload(upd, file)
+                }
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun afterDownload(upd: Updater.UpdateInfo, file: File) {
+        if (Updater.signaturesMatch(this, file)) {
+            installApk(file)
+        } else {
+            /* cacheDir dies with the app, so park the APK in Download for
+             * the manual reinstall that follows the uninstall. */
+            val saved = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "TimerRoot-${upd.tag}.apk"
+            )
+            val savedOk = runCatching { file.copyTo(saved, overwrite = true) }.isSuccess
+            updatePrompt = null
+            if (savedOk) {
+                updateMismatch = upd
+            } else {
+                Toast.makeText(
+                    this,
+                    "Could not save the APK to Download",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun installApk(file: File) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.updatefileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (packageManager.canRequestPackageInstalls()) {
+            runCatching { startActivity(intent) }
+        } else {
+            runCatching {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            }
+            Toast.makeText(
+                this,
+                "Allow installing from TimerRoot, then tap Install now again",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun manualUpdateCheck() {
+        if (updateChecking) return
+        updateChecking = true
+        lifecycleScope.launch(Dispatchers.IO) {
+            val upd = runCatching { Updater.fetchLatest() }.getOrNull()
+            postUi {
+                updateChecking = false
+                if (upd == null) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Update check failed - offline or rate-limited",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    latestSeen = upd.version
+                    if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version)) {
+                        updatePrompt = upd
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "TimerRoot is up to date (${BuildConfig.VERSION_NAME})",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        }
     }
 
     /* Field lesson (Nov 15): a fake_uid timing miss leaves the core holding
