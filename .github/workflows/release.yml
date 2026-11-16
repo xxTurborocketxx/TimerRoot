@@ -49,6 +49,12 @@ jobs:
           files: TimerRoot-*.apk
           generate_release_notes: true
           body: |
+            ## What's new
+
+            (This section is edited in after publishing.)
+
+            ## About TimerRoot
+
             TimerRoot — POSIX CPU-timer UAF (CVE-2026-98260) → fake cred →
             KernelSU late-load ("Jailbreak mode").
 
