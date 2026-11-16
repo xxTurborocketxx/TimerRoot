@@ -32,6 +32,10 @@ Third-party libraries used by the APK:
   Kotlin standard library, kotlinx.coroutines Apache-2.0
   COUI (io.github.suqi8.coui.kmp)             Apache-2.0
   Shizuku (dev.rikka.shizuku)                 Apache-2.0
+  aircompressor (io.airlift:aircompressor 0.27, locally patched)   Apache-2.0
+  Apache Commons Compress (org.apache.commons:commons-compress)    Apache-2.0
+  libextract.so (zstd decoder, from the ghostlock-app build;       Apache-2.0
+  Rust zstd crate)                                                 / MIT
 
 Full license texts are bundled in the app under the "Open Source Licenses" page
 (apk-gradle/app/src/main/assets/licenses/).
