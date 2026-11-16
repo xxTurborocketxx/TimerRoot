@@ -20,6 +20,9 @@ unlock needed on the Motorola Edge 50 Ultra.
 - **Bugs in the app or core:** open a
   [GitHub issue](https://github.com/xxTurborocketxx/ic-timer-lpe/issues)
   with the app log (`/sdcard/Download/TimerRoot-log-*.txt` or `ic-app-*.log`) attached.
+- **Porting to another device:** see the
+  [porting guide](docs/porting.md) — requirements, the no-build
+  parse-offsets path and what a full kernel port takes.
 
 For anything else (usage help, other firmware builds, feature ideas), the XDA
 thread is the better place — issues are mainly for reproducible bugs.
@@ -108,6 +111,10 @@ package (.zip)**:
   refused;
 - On success `/data/local/tmp/ic-syms.txt` is generated — then run the
   one-tap jailbreak as usual.
+
+For everything beyond that — a new device on a supported kernel
+family, or a different kernel version entirely — see the
+[porting guide](docs/porting.md).
 
 ### ROOT managers
 
