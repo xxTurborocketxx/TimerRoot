@@ -74,7 +74,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Tag
@@ -552,7 +552,7 @@ class MainActivity : ComponentActivity() {
                                     onClick = { showManual = true },
                                     startAction = {
                                         Icon(
-                                            imageVector = Icons.Filled.MenuBook,
+                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
                                             contentDescription = null,
                                             modifier = Modifier.padding(end = 6.dp),
                                             tint = COUITheme.colorScheme.onBackground
@@ -1774,6 +1774,10 @@ class MainActivity : ComponentActivity() {
                 if (s == null || path == null) break
                 try {
                     val len = s.length(path)
+                    /* Defensive: if a writer ever shrinks or rewrites this
+                     * file, sync to the current end instead of re-delivering
+                     * rewritten regions at the stale monotonic offset. */
+                    if (len < logOff) logOff = len
                     while (logOff < len) {
                         val want = minOf(64 * 1024, len - logOff)
                         val b = s.read(path, logOff, want)

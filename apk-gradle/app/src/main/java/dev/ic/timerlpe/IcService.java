@@ -166,10 +166,17 @@ public class IcService extends IIcService.Stub {
             env.put("PATH", PATH);
             env.put("IC_BIN", bin);
             env.put("ATTEMPTS", Integer.toString(attempts));
-            /* The launcher tees every zero attempt into this file too, so
-             * the slide, zero-funcs, zero-selinux and chain output all end
-             * up in the one log the UI follows (and Download gets). */
-            env.put("IC_APP_LOG", log);
+            /* The core tees its buffered output into IC_APP_LOG, rewriting
+             * that file (truncate + full rewrite) on every flush.  The app
+             * polls the stdout log with a monotonic offset, so a second,
+             * non-monotonic writer into the same file made the poller
+             * re-deliver rewritten regions and skip shrunken ones (seen
+             * live: the success tail four times, the four missed plant
+             * attempts never).  Point the tee at a side file so the polled
+             * log has exactly one writer: the append-only stdout pump.  The
+             * core's stdout carries the full chain (the Download copy
+             * matches it), so nothing is lost. */
+            env.put("IC_APP_LOG", log + ".core");
             if (payloadCmd != null && !payloadCmd.isEmpty())
                 env.put("PAYLOAD_CMD", payloadCmd);
             /* extraEnv is newline-separated K=V; keep it tiny and reject
