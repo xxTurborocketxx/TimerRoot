@@ -151,7 +151,7 @@ import java.io.InputStream
 import java.nio.channels.FileChannel
 
 private const val PROJECT_URL = "https://github.com/kzktor/ic-timer-lpe"
-private const val COMMUNITY_URL = "https://qm.qq.com/q/MBM9NcDXYy"
+private const val XDA_URL = "https://xdaforums.com/t/tool-timerroot-one-tap-root-for-motorola-edge-50-ultra-no-bootloader-unlock-vivo-iqoo.4808957/"
 
 private data class LicenseText(
     val name: String,
@@ -1000,9 +1000,9 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
-                                    title = "Join the community",
-                                    summary = "Join the QQ group",
-                                    onClick = { uriHandler.openUri(COMMUNITY_URL) },
+                                    title = "XDA thread",
+                                    summary = "Discussion, support and feedback",
+                                    onClick = { uriHandler.openUri(XDA_URL) },
                                     startAction = {
                                         Icon(
                                             imageVector = Icons.Filled.Group,
