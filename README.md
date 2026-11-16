@@ -12,6 +12,18 @@ unlock needed on the Motorola Edge 50 Ultra.
 > (by Coolapk **@散花神木 (Sanhua Shenmu)**) with **Motorola Edge 50 Ultra**
 > support, an English UI and additional app-side safety features.
 
+## Discussion & support
+
+- **Questions, feedback, device reports:** post in the
+  [XDA discussion thread](https://xdaforums.com/t/tool-timerroot-one-tap-root-for-motorola-edge-50-ultra-no-bootloader-unlock-vivo-iqoo.4808957/) —
+  that's the preferred place; I check it regularly and other users can help there too.
+- **Bugs in the app or core:** open a
+  [GitHub issue](https://github.com/xxTurborocketxx/ic-timer-lpe/issues)
+  with the app log (`/sdcard/Download/TimerRoot-log-*.txt` or `ic-app-*.log`) attached.
+
+For anything else (usage help, other firmware builds, feature ideas), the XDA
+thread is the better place — issues are mainly for reproducible bugs.
+
 ## How to use
 
 ### 1. Install
