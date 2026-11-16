@@ -1,9 +1,9 @@
-IC Timer LPE
-============
+TimerRoot (IC Timer LPE port for the Motorola Edge 50 Ultra)
+============================================================
 
 Copyright (C) 2026 Coolapk @散花神木 (Sanhua Shenmu) and contributors
 Portions (Motorola Edge 50 Ultra / ctwo port): Copyright (C) 2026 fork
-contributors - https://github.com/xxTurborocketxx/ic-timer-lpe
+contributors - https://github.com/xxTurborocketxx/TimerRoot
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

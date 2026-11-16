@@ -11,6 +11,10 @@ unlock needed on the Motorola Edge 50 Ultra.
 > **Fork note:** this repository extends the upstream vivo/iQOO tool
 > (by Coolapk **@散花神木 (Sanhua Shenmu)**) with **Motorola Edge 50 Ultra**
 > support, an English UI and additional app-side safety features.
+>
+> **Name note:** `kpgc10kai/TimerRoot`, referenced upstream, is a
+> different, older Pixel-rooting tool — this repository is unrelated
+> to it.
 
 ## Discussion & support
 
@@ -18,7 +22,7 @@ unlock needed on the Motorola Edge 50 Ultra.
   [XDA discussion thread](https://xdaforums.com/t/tool-timerroot-one-tap-root-for-motorola-edge-50-ultra-no-bootloader-unlock-vivo-iqoo.4808957/) —
   that's the preferred place; I check it regularly and other users can help there too.
 - **Bugs in the app or core:** open a
-  [GitHub issue](https://github.com/xxTurborocketxx/ic-timer-lpe/issues)
+  [GitHub issue](https://github.com/xxTurborocketxx/TimerRoot/issues)
   with the app log (`/sdcard/Download/TimerRoot-log-*.txt` or `ic-app-*.log`) attached.
 - **Porting to another device:** see the
   [porting guide](docs/porting.md) — requirements, the no-build
@@ -160,8 +164,10 @@ UI ported from [Shark](https://github.com/Yunnijian/Shark) (GPL-3.0):
 - **Quiet-window preflight** before every run (load / boot age, fail-closed);
 - **Live status**: “Jailbreak active this boot” updates as soon as the run
   ends — no app restart needed;
-- **Auto-opens**: the app opens Shizuku for you when it is not running,
-  and the ROOT manager after a successful run;
+- **Auto-opens**: after a successful run the ROOT manager opens
+  automatically, with a "Root is live" notification covering the
+  backgrounded case; when Shizuku is not running, the home tab offers
+  an Open Shizuku button instead;
 - **Readable log**: every line is time-stamped and color-coded (green
   proof / red failure / grey info), tapping a line copies it, the share
   button saves the log to Download (`TimerRoot-log-*.txt`) or the share
@@ -169,6 +175,12 @@ UI ported from [Shark](https://github.com/Yunnijian/Shark) (GPL-3.0):
   each attempt with its duration;
 - **One-run-per-boot lock**: reruns in the same boot are blocked with an
   explanation dialog;
+- **In-app updater**: checks GitHub for a newer release on start and on
+  demand, shows the channel label next to the versions, and installs
+  the downloaded APK only when its signature matches the installed app;
+- **What's new & beta channel**: release notes with tappable links in
+  the About tab, plus a Beta channel switch that also picks up
+  prereleases from the `nightly` line;
 - Offset preflight: `ic-timer info` (read-only) before a run; a
   missing-offsets dialog points to parse-offsets;
 - Parse offsets: boot.img or full OTA (zip64 + payload + zstd), boot
@@ -218,6 +230,11 @@ core/build.sh /tmp/t98260 ctwomoto    # NDK r27, API 29 (API 24 TLS
 cp /tmp/t98260 apk-gradle/app/src/main/assets/ic-timer
 cd apk-gradle && ./gradlew :app:assembleRelease   # AGP 9.4.1 / Kotlin 2.4.20
 ```
+
+The app builds out of the box — a prebuilt `ic-timer` core is committed
+under `apk-gradle/app/src/main/assets/`. Rebuilding the core needs the
+Android NDK (r27): set `ANDROID_NDK_HOME` to the NDK root, or point
+`CC` at the cross clang; `core/build.sh` wraps both.
 
 Profile selectors: `pd2571` (default, vivo 6.1.145), `qemu_iqoo12` (QEMU
 test image), `ctwomoto` (Motorola Edge 50 Ultra GKI 6.1.157).
