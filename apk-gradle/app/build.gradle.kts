@@ -42,6 +42,19 @@ android {
         }
     }
     buildTypes {
+        debug {
+            /* Same keystore as release so a locally built test APK installs
+             * over the released app (adb install -r) without the signature
+             * switch: no uninstall, no data wipe (the one-run lock survives
+             * app updates), no reinstall reboot.  Without a configured
+             * release keystore the debug key keeps working exactly as
+             * before - the signature switch only applies to that fallback. */
+            signingConfig = if (keystoreFile.exists()) {
+                signingConfigs.getByName("local")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
