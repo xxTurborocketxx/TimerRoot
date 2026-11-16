@@ -34,8 +34,9 @@ thread is the better place — issues are mainly for reproducible bugs.
 - Install [Shizuku](https://shizuku.rikka.app/) (Play Store or GitHub) and
   start it **on-device via Wireless debugging** (Developer options →
   Wireless debugging → pair, then start). Shizuku must be restarted this way
-  after every reboot — TimerRoot notices a stopped Shizuku and opens the
-  app for you.
+  after every reboot — when TimerRoot notices that Shizuku is not running,
+  it shows an Open Shizuku button on the home tab (the manual and log tabs
+  work without it).
 - Grant TimerRoot the Shizuku permission.
 - Optional: install a **ROOT manager** and pick it in the app's dropdown
   (see the [manager list](#root-managers)). Without a manager the run
