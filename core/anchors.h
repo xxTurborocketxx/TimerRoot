@@ -82,6 +82,22 @@ static const char *const ic_anchor_names[IC_ANCHOR_N] = {
 };
 
 static const struct ic_anchor_build ic_anchor_builds[] = {
+    /* Generic GKI-image entry: any device running the identical GKI image
+     * reuses the ctwo table; the kernel banner alone identifies the
+     * memory layout.  Same table name, so the fake-cred row in
+     * ic_extra_syms_tab applies unchanged. */
+    { "6.1.157-android14-11-gb3d4cdadf339-ab16160610", NULL, NULL, "ctwo_4220_links", {
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0ULL, 0ULL, 0ULL, 0ULL, 0ULL, 0ULL,
+        0xffffffc00a1b1da0ULL, 0xffffffc00a25b820ULL,
+        0xffffffc00a0304f0ULL, 0xffffffc00a031aa8ULL,
+    } },
     /* Motorola Edge 50 Ultra (ctwo), build A171SUVH.42-20-1; kernel banner
      * 6.1.157-android14-11-gb3d4cdadf339-ab16160610 (GKI, 36e2a-a4560).
      * Only the last four links are consumed on the run path (tracepoint,
