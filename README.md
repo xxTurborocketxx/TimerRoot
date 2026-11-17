@@ -102,6 +102,11 @@ Built-in offsets — model + firmware version match — no parsing required:
 | PD2445 / V2445 | 16.1.16.0 |
 | Motorola Edge 50 Ultra (`ctwo`) | GKI `6.1.157-android14-11`, build `36e2a-a4560` (`CTWOMOTO` profile) |
 
+Any other device running the **identical GKI image**
+`6.1.157-android14-11-gb3d4cdadf339-ab16160610` (the full `uname -r`) is
+built in as well — the banner alone pins the memory layout, regardless
+of brand or model (v0.31+).
+
 ### Parse offsets (builds outside the list)
 
 Tap **Parse offsets** and pick the model's `boot.img` or a **full OTA
@@ -246,9 +251,10 @@ Android NDK (r27): set `ANDROID_NDK_HOME` to the NDK root, or point
 Profile selectors: `pd2571` (default, vivo 6.1.145), `qemu_iqoo12` (QEMU
 test image), `ctwomoto` (Motorola Edge 50 Ultra GKI 6.1.157).
 
-`core/tools/gen_anchors.py <Image>` regenerates the anchor tables from a
-kernel image; `core/tools/verify_tables.py` cross-checks them against
-parse results. Tagging a release (`v*`) makes the `release` workflow
+`core/tools/make_port.py` consolidates the port flow: anchor and
+fake-cred rows from a kernel Image, fail-closed on unresolved plan
+symbols; `core/tools/verify_tables.py` cross-checks tables against parse
+results. Tagging a release (`v*`) makes the `release` workflow
 build and publish **`TimerRoot-<tag>.apk`** automatically — signed with
 the project keystore when the repository secrets are configured,
 otherwise debug-signed.
