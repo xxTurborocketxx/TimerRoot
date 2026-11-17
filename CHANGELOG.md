@@ -4,6 +4,26 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.31
+
+Port round: the same generic kernel image (GKI) now works out of the box
+on any device that ships it, and support requests become self-contained.
+
+- **Shared GKI image**: the core carries a kernel-exact anchor for the
+  generic 6.1.157 image identical to the Edge 50 Ultra kernel, so any
+  device running that exact build escalates without a vivo or Motorola
+  model check; the preflight accepts it on any brand and the device
+  notice says so.
+- **Share a device report**: the About tab gains a one-tap report with
+  the app version, device props, build, Android and kernel for the XDA
+  thread - everything needed to judge a port, readable without root.
+- **Docs**: the README and the in-app manual document direct install and
+  the release-notes dialog (manual updates section).
+- **Porting**: `core/tools/make_port.py` consolidates the Path B port
+  flow into one helper - anchor and fake-cred rows from a kernel Image,
+  fail-closed on unresolved plan symbols; the porting guide and the
+  README reflect it and the shared GKI image.
+
 ## v0.30
 
 Stable cut of the nightly-line betas (v0.29.1, v0.29.2); the notes-tap
