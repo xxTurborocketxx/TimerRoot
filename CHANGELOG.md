@@ -4,6 +4,18 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.28.1
+
+Beta on the nightly line: the out-of-scope confirm dialog.
+
+- Running on a device or kernel that is not known-supported now asks for
+  one explicit confirmation per app session before the core starts
+  ("Out of scope - confirm to run"). The startup device notice stays.
+- "Run anyway" re-enters the preflight, so the busy-load warning still
+  applies; "Not today" cancels the run.
+- No changes to the exploit chain, the one-run-per-boot lock, or the
+  preflight hard gates.
+
 ## v0.28
 
 - boot.img check relaxed: on a fingerprint mismatch TimerRoot now compares
