@@ -4,6 +4,23 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.29.1
+
+Beta on the nightly line: What's new polish, part two (v27 follow-up).
+
+- **Scrollable What's new**: long release notes now scroll inside a
+  bounded region instead of pushing the buttons out of reach, both in
+  the changelog dialog and in the update prompt.
+- **Versioned headings**: the changelog dialog title and the update
+  prompt label name the release they describe ("What's new in
+  v0.29.1 (beta)") instead of a generic label.
+- **Bold bullet lead-ins**: bullets from the release notes render
+  their lead-in in bold.
+- **Notes tap checks for updates**: fetching the release notes now
+  doubles as an update check - a newer, not-skipped release goes
+  straight to the install prompt instead of waiting for the next
+  app start.
+
 ## v0.29
 
 Stable cut of the two beta features from the nightly line (beta-tested as
