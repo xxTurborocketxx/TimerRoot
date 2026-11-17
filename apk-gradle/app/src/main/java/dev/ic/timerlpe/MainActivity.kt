@@ -202,6 +202,14 @@ class MainActivity : ComponentActivity() {
     private var offsetPrompt by mutableStateOf<String?>(null)
     private var loadPrompt by mutableStateOf<String?>(null)
     private var missPrompt by mutableStateOf(false)
+    /* v25: out-of-scope confirm. The startup device notice stays purely
+     * informational; the Run button additionally asks for one explicit
+     * confirmation per session before the core starts on a device or
+     * kernel that is not known-supported. */
+    private var scopePending by mutableStateOf(false)
+    private var scopeReasons by mutableStateOf("")
+    private var scopeConfirmed by mutableStateOf(false)
+    private var scopePrompt by mutableStateOf<String?>(null)
     private var missHold = false
     private var rerunPrompt by mutableStateOf(false)
     /* v4: Compose-visible mirror of the persisted run flag. A
@@ -378,6 +386,7 @@ class MainActivity : ComponentActivity() {
                         CleanupDialog()
                         OffsetPromptDialog()
                         LoadPromptDialog()
+                        ScopePromptDialog()
                         MissPromptDialog()
                         RerunPromptDialog()
                         ParseMenuDialog()
@@ -1627,6 +1636,8 @@ class MainActivity : ComponentActivity() {
                 add("Not a vivo / iQOO / Motorola device (${brand.ifBlank { manufacturer }})")
             if (!kernelOk) add("Kernel is not supported ($kernelVersion)")
         }
+        scopePending = true
+        scopeReasons = reasons.joinToString("\n· ")
         notice = Notice(
             "Device notice",
             buildString {
@@ -2983,6 +2994,18 @@ class MainActivity : ComponentActivity() {
     private fun bootAgeSeconds(): Long = SystemClock.elapsedRealtime() / 1000
 
     private fun maybeWarnThenRun() {
+        if (scopePending && !scopeConfirmed) {
+            scopePrompt = buildString {
+                append("This device or kernel is not known-supported: the run is out of ")
+                append("scope and privilege escalation will most likely fail; writes to wrong ")
+                append("addresses may leave the device misbehaving.\n\n")
+                append("Detected:\n· ")
+                append(scopeReasons)
+                append("\n\nOnly continue if you are porting on purpose and accept the risk.")
+            }
+            addLog("[preflight] out of scope - run held for explicit confirmation")
+            return
+        }
         val s = requireService("preflight") ?: return
         lifecycleScope.launch {
             val (load, age) = withContext(Dispatchers.IO) {
@@ -3032,6 +3055,41 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth(),
                         text = "Wait for a quiet window",
                         onClick = { loadPrompt = null }
+                    )
+                }
+            }
+        )
+    }
+
+    /* v25: the out-of-scope confirm dialog. The confirm button re-enters
+     * the preflight flow, so the busy-load check still runs afterwards. */
+    @Composable
+    private fun ScopePromptDialog() {
+        OverlayDialog(
+            show = scopePrompt != null,
+            title = "Out of scope - confirm to run",
+            onDismissRequest = { scopePrompt = null },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(scopePrompt ?: "", fontSize = 13.sp)
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Run anyway",
+                        onClick = {
+                            scopeConfirmed = true
+                            scopePrompt = null
+                            maybeWarnThenRun()
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Not today",
+                        onClick = { scopePrompt = null }
                     )
                 }
             }
