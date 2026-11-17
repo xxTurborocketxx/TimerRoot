@@ -44,6 +44,23 @@ live jailbreak status).
 - Each run is framed by a "run start" / "run end" banner showing the
   final stage and how long the run took.
 
+## Updates
+
+- **Check for updates** in the About tab compares the installed version
+  against the latest GitHub release and shows the channel label next to
+  the versions;
+- The **Beta channel** switch also picks up prereleases from the nightly
+  line;
+- The update dialog previews the release notes — a versioned title
+  ("What's new in <version>"), a scrollable area for longer notes, bold
+  bullet lead-ins and tappable links;
+- With the **Shizuku service running**, a downloaded update installs
+  silently through the shell service, the way adb installs an APK — no
+  confirmation dialog, no unknown-sources detour. If the shell install
+  fails, the system installer opens as before;
+- The downloaded APK is only installed when its signature matches the
+  installed app.
+
 ## Built-in offsets (model + version match)
 
 - PD2506 / V2506 (Y500): 16.1.15.0, 16.1.13.2, 16.1.17.0

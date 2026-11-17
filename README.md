@@ -178,9 +178,16 @@ UI ported from [Shark](https://github.com/Yunnijian/Shark) (GPL-3.0):
 - **In-app updater**: checks GitHub for a newer release on start and on
   demand, shows the channel label next to the versions, and installs
   the downloaded APK only when its signature matches the installed app;
-- **What's new & beta channel**: release notes with tappable links in
-  the About tab, plus a Beta channel switch that also picks up
-  prereleases from the `nightly` line;
+- **Direct install**: with the Shizuku service running, the updater
+  installs a downloaded update silently through the shell service, the
+  way `adb install` works — no confirmation dialog, no unknown-sources
+  detour. If the shell install fails, the system installer opens as
+  before;
+- **What's new & beta channel**: release notes with tappable links — in
+  the About tab and in the update dialog, where longer notes scroll
+  under a versioned title ("What's new in <version>") with bold bullet
+  lead-ins — plus a Beta channel switch that also picks up prereleases
+  from the `nightly` line;
 - Offset preflight: `ic-timer info` (read-only) before a run; a
   missing-offsets dialog points to parse-offsets;
 - Parse offsets: boot.img or full OTA (zip64 + payload + zstd), boot
