@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -2647,9 +2648,21 @@ class MainActivity : ComponentActivity() {
                         fontSize = 13.sp
                     )
                     if (!upd?.notes.isNullOrBlank()) {
-                        Text("What's new:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "What's new in v${upd?.version}${channelTag(upd?.prerelease)}:",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(Modifier.height(6.dp))
-                        NotesText(upd.notes)
+                        /* v30: long notes scroll inside a bounded region, so
+                         * the buttons below stay reachable. */
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 380.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            NotesText(upd.notes)
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                     if (updateProgress.isNotEmpty()) {
@@ -2873,10 +2886,18 @@ class MainActivity : ComponentActivity() {
             Column {
                 text.lines().forEachIndexed { idx, line ->
                     if (line.isBlank()) return@forEachIndexed
+                    /* v30: markdown bullet lead-ins with a double-asterisk
+                     * pair render as a bold lead, asterisks removed. */
+                    val lead = Regex("^- \\*\\*(.+?)\\*\\*(.*)$").find(line)
+                    val plain = if (lead != null)
+                        "- " + lead.groupValues[1] + lead.groupValues[2]
+                    else
+                        line
+                    val boldEnd = if (lead != null) 2 + lead.groupValues[1].length else 0
                     val annotated = remember(line, linkColor) {
                         buildAnnotatedString {
-                            append(line)
-                            for (m in Regex("https?://[^ ]+").findAll(line)) {
+                            append(plain)
+                            for (m in Regex("https?://[^ ]+").findAll(plain)) {
                                 val url = m.value.trimEnd('.', ')', ',', ';')
                                 addLink(
                                     LinkAnnotation.Url(
@@ -2892,6 +2913,9 @@ class MainActivity : ComponentActivity() {
                                     m.range.first + url.length
                                 )
                             }
+                            if (lead != null && boldEnd > 2) {
+                                addStyle(SpanStyle(fontWeight = FontWeight.Bold), 2, boldEnd)
+                            }
                         }
                     }
                     if (idx > 0) {
@@ -2902,7 +2926,7 @@ class MainActivity : ComponentActivity() {
                         annotated,
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
-                        modifier = if (line.startsWith("- "))
+                        modifier = if (plain.startsWith("- "))
                             Modifier.padding(start = 10.dp)
                         else
                             Modifier
@@ -2917,22 +2941,22 @@ class MainActivity : ComponentActivity() {
         val notes = changelogPrompt
         OverlayDialog(
             show = notes != null,
-            title = "What's new",
+            title = if (latestSeen.isNullOrBlank()) "What's new"
+            else "What's new in v$latestSeen${channelTag(latestPrerelease)}",
             onDismissRequest = { changelogPrompt = null },
             content = {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
-                    /* v27: which release these notes belong to. */
-                    if (!latestSeen.isNullOrBlank()) {
-                        Text(
-                            "Latest release: v$latestSeen${channelTag(latestPrerelease)}",
-                            fontSize = 12.sp,
-                            color = COUITheme.colorScheme.onBackground
-                        )
-                        Spacer(Modifier.height(10.dp))
+                    /* v30: the title names the release; long notes scroll
+                     * inside a bounded region so the button stays put. */
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 380.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        NotesText(notes ?: "")
                     }
-                    NotesText(notes ?: "")
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
