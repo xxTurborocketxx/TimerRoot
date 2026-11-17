@@ -16,10 +16,6 @@ Beta on the nightly line: What's new polish, part two (v27 follow-up).
   v0.29.1 (beta)") instead of a generic label.
 - **Bold bullet lead-ins**: bullets from the release notes render
   their lead-in in bold.
-- **Notes tap checks for updates**: fetching the release notes now
-  doubles as an update check - a newer, not-skipped release goes
-  straight to the install prompt instead of waiting for the next
-  app start.
 
 ## v0.29
 
