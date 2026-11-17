@@ -4,6 +4,22 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.30
+
+Stable cut of the nightly-line betas (v0.29.1, v0.29.2); the notes-tap
+re-check from the first beta was reverted by design.
+
+- **Scrollable release notes**: longer "What's new" bodies scroll instead
+  of clipping.
+- **Versioned notes title**: the dialog shows "What's new in v0.30", so
+  releases stay distinguishable.
+- **Bold bullet lead-ins**: each bullet starts with a bold lead-in for
+  quick scanning.
+- **Direct install**: with the Shizuku service running, the updater
+  installs a downloaded update silently, the way adb installs an APK -
+  no confirmation dialog, no unknown-sources detour. If the shell
+  install fails, the system installer opens as before.
+
 ## v0.29
 
 Stable cut of the two beta features from the nightly line (beta-tested as
