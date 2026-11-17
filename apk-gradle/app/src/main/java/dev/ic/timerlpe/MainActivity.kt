@@ -1066,6 +1066,20 @@ class MainActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider()
                                 ArrowPreference(
+                                    title = "Share a device report",
+                                    summary = "For support requests in the XDA thread",
+                                    onClick = { shareDeviceReport() },
+                                    startAction = {
+                                        Icon(
+                                            imageVector = Icons.Filled.IosShare,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                            tint = COUITheme.colorScheme.onBackground
+                                        )
+                                    }
+                                )
+                                HorizontalDivider()
+                                ArrowPreference(
                                     title = "Feedback",
                                     summary = "Report issues on GitHub Issues",
                                     onClick = { uriHandler.openUri("$PROJECT_URL/issues") },
@@ -1630,8 +1644,9 @@ class MainActivity : ComponentActivity() {
         val vendor = "$brand $manufacturer".lowercase()
         val isVivo = vendor.contains("vivo") || vendor.contains("iqoo")
         val isMoto = vendor.contains("motorola")
-        val kernelOk = kernelVersion.contains("6.1.145") || (isMoto && kernelVersion.contains("6.1.157"))
-        if ((isVivo || isMoto) && kernelOk) return
+        val gkiImage = kernelVersion.contains("6.1.157-android14-11-gb3d4cdadf339-ab16160610")
+        val kernelOk = kernelVersion.contains("6.1.145") || (isMoto && kernelVersion.contains("6.1.157")) || gkiImage
+        if ((isVivo || isMoto || gkiImage) && kernelOk) return
         val reasons = buildList {
             if (!isVivo && !isMoto)
                 add("Not a vivo / iQOO / Motorola device (${brand.ifBlank { manufacturer }})")
@@ -1642,7 +1657,7 @@ class MainActivity : ComponentActivity() {
         notice = Notice(
             "Device notice",
             buildString {
-                append("This tool only fits vivo / iQOO models with kernel 6.1.145 or the Motorola Edge 50 Ultra with kernel 6.1.157.\n\n")
+                append("This tool only fits vivo / iQOO models with kernel 6.1.145, the Motorola Edge 50 Ultra with kernel 6.1.157, or any device running the identical GKI kernel image (6.1.157-android14-11-gb3d4cdadf339-ab16160610).\n\n")
                 append("Detected:\n· ")
                 append(reasons.joinToString("\n· "))
                 append("\n\nYou can still continue, but privilege escalation will most likely fail, ")
@@ -1666,6 +1681,37 @@ class MainActivity : ComponentActivity() {
         get.invoke(null, key) as? String ?: ""
     } catch (_: Throwable) {
         ""
+    }
+
+    /**
+     * A one-tap device report for support requests: everything the XDA
+     * thread needs to judge a port (props, kernel, versions) - readable
+     * without root.
+     */
+    private fun deviceReportText(): String = buildString {
+        val brand = getSystemProperty("ro.product.brand")
+        val manufacturer = getSystemProperty("ro.product.manufacturer")
+        val model = getSystemProperty("ro.product.model")
+        val device = getSystemProperty("ro.product.device")
+        val buildId = getSystemProperty("ro.build.display.id")
+        append("TimerRoot device report\n")
+        append("app: TimerRoot ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n")
+        append("device: $brand $manufacturer $model ($device)\n")
+        append("build: $buildId\n")
+        append("android: ${Build.VERSION.RELEASE}\n")
+        append("kernel: $kernelVersion\n")
+    }
+
+    private fun shareDeviceReport() {
+        val text = deviceReportText()
+        addLog("[device] report: ${text.replace("\n", " | ")}")
+        runCatching {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            startActivity(Intent.createChooser(send, "Share device report"))
+        }
     }
 
     private fun managerInstalled(pkg: String): Boolean =
