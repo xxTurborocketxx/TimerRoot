@@ -54,23 +54,28 @@ jobs:
       - name: Prerelease flag from the tag shape
         id: relflag
         run: echo "prerelease=$(echo "$GITHUB_REF_NAME" | awk -F. 'NF>=3 {print "true"}')" >> "$GITHUB_OUTPUT"
+      - name: Build release body from the changelog
+        run: |
+          SECTION="$(awk -v tag="## ${GITHUB_REF_NAME}" '
+            $0 == tag { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md)"
+          if [ -z "$SECTION" ]; then
+            echo "::warning::No CHANGELOG.md section for ${GITHUB_REF_NAME} - publishing with a placeholder."
+            SECTION="(No changelog entry was written for this release; see the commit list below.)"
+          fi
+          {
+            echo "## What's new"
+            echo ""
+            printf '%s\n' "$SECTION"
+            echo ""
+            cat .github/RELEASE_ABOUT.md
+          } > release-body.md
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: TimerRoot-*.apk
           generate_release_notes: true
           prerelease: ${{ steps.relflag.outputs.prerelease == 'true' }}
-          body: |
-            ## What's new
-
-            (This section is edited in after publishing.)
-
-            ## About TimerRoot
-
-            TimerRoot — POSIX CPU-timer UAF (CVE-2026-98260) → fake cred →
-            KernelSU late-load ("Jailbreak mode").
-
-            Signed with the release keystore; the workflow refuses to
-            publish without it. Requires a running Shizuku shell
-            service (ADB / wireless debugging). One full run per boot — the
-            app enforces this itself; reboot before every run.
+          body_path: release-body.md
