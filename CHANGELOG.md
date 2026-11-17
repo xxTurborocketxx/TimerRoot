@@ -4,6 +4,15 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.29.2
+
+Beta on the nightly line: direct update install.
+
+- **Direct install**: with the Shizuku service running, the updater
+  installs a downloaded update silently, the way adb installs an APK -
+  no confirmation dialog, no unknown-sources detour. If the shell
+  install fails, the system installer opens as before.
+
 ## v0.29.1
 
 Beta on the nightly line: What's new polish, part two (v27 follow-up).
