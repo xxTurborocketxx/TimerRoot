@@ -14,9 +14,9 @@ import java.net.URL
  * is blocking and main-free. */
 object Updater {
     const val LATEST_API =
-        "https://api.github.com/repos/xxTurborocketxx/ic-timer-lpe/releases/latest"
+        "https://api.github.com/repos/xxTurborocketxx/TimerRoot/releases/latest"
     const val BETA_API =
-        "https://api.github.com/repos/xxTurborocketxx/ic-timer-lpe/releases?per_page=20"
+        "https://api.github.com/repos/xxTurborocketxx/TimerRoot/releases?per_page=20"
 
     class UpdateInfo(val tag: String, val version: String, val url: String, val size: Long, val notes: String, val prerelease: Boolean)
 

@@ -258,8 +258,9 @@ otherwise debug-signed.
 ## Known limitations
 
 - Filesystem layout and `struct cred` offsets of untested builds are
-  derived from known builds; on an untested build a failure shows up as
-  `fork/exec errno=12` (ENOMEM) — it will not panic;
+  derived from known builds; on an untested build a failure normally
+  shows up as `fork/exec errno=12` (ENOMEM) rather than a kernel panic,
+  but a panic on an unknown offset set cannot be fully ruled out;
 - Upstream profiles fit 6.1.145 kernels; this fork adds the Edge 50
   Ultra's 6.1.157 GKI build;
 - One run per boot; a second attempt in the same boot is refused.

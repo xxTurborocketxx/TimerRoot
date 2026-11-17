@@ -159,7 +159,7 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.channels.FileChannel
 
-private const val PROJECT_URL = "https://github.com/xxTurborocketxx/ic-timer-lpe"
+private const val PROJECT_URL = "https://github.com/xxTurborocketxx/TimerRoot"
 private const val XDA_URL = "https://xdaforums.com/t/tool-timerroot-one-tap-root-for-motorola-edge-50-ultra-no-bootloader-unlock-vivo-iqoo.4808957/"
 
 private data class LicenseText(
