@@ -2994,7 +2994,16 @@ class MainActivity : ComponentActivity() {
                     latestPrerelease = upd.prerelease
                     if (upd.version == BuildConfig.VERSION_NAME) installedPrerelease = upd.prerelease
                     latestNotes = upd.notes
-                    if (upd.notes.isBlank()) {
+                    /* v32: fetching the notes doubles as an update check - a
+                     * newer, not-skipped release goes straight to the install
+                     * prompt, which shows the same notes with its version
+                     * heading; otherwise the notes dialog refreshes in place. */
+                    if (Updater.isNewer(BuildConfig.VERSION_NAME, upd.version) &&
+                        prefs.getString("update_skip_tag", null) != upd.tag
+                    ) {
+                        changelogPrompt = null
+                        updatePrompt = upd
+                    } else if (upd.notes.isBlank()) {
                         Toast.makeText(
                             this@MainActivity,
                             "The latest release has no notes",
