@@ -5,6 +5,8 @@ on:
   push:
     branches: [ main, nightly ]
     tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, nightly ]
 
 permissions:
   contents: read

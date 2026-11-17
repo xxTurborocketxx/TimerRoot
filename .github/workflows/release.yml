@@ -22,21 +22,29 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      # Optional: set the four repository secrets (IC_KEYSTORE_BASE64 =
-      # base64 of a .jks, plus store password, key alias and key password)
-      # to get a properly signed release APK. Without them the build falls
-      # back to debug signing.
+      # The four repository secrets (IC_KEYSTORE_BASE64 = base64 of a .jks,
+      # plus store password, key alias and key password) are REQUIRED:
+      # publishing a debug-signed release APK would break the in-app
+      # updater's signature check, so the run refuses to continue when
+      # they are missing (fail-closed).
+      - name: Refuse to publish without the signing secrets
+        if: env.IC_KEYSTORE_BASE64 == ''
+        run: |
+          echo "::error::IC_KEYSTORE_BASE64 (and companions) are not set - refusing to publish a debug-signed release."
+          exit 1
       - name: Decode signing keystore
         if: env.IC_KEYSTORE_BASE64 != ''
         run: echo "$IC_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ic.keystore"
-      - name: Build release APK
+      - name: Test and build release APK
         working-directory: apk-gradle
         run: |
           KEYSTORE_ARGS=""
           if [ -n "$IC_KEYSTORE_BASE64" ]; then
             KEYSTORE_ARGS="-Pic.keystore=$RUNNER_TEMP/ic.keystore -Pic.storePassword=$IC_STORE_PASSWORD -Pic.keyAlias=$IC_KEY_ALIAS -Pic.keyPassword=$IC_KEY_PASSWORD"
           fi
-          ./gradlew assembleRelease --no-daemon $KEYSTORE_ARGS
+          # testDebugUnitTest runs first; a failing test aborts the job
+          # before anything is staged or published.
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon $KEYSTORE_ARGS
       - name: Stage APK
         run: |
           APK="apk-gradle/app/build/outputs/apk/release/app-release.apk"
@@ -62,7 +70,7 @@ jobs:
             TimerRoot — POSIX CPU-timer UAF (CVE-2026-98260) → fake cred →
             KernelSU late-load ("Jailbreak mode").
 
-            Signed with the release keystore when the repository secrets are
-            set; otherwise debug-signed. Requires a running Shizuku shell
+            Signed with the release keystore; the workflow refuses to
+            publish without it. Requires a running Shizuku shell
             service (ADB / wireless debugging). One full run per boot — the
             app enforces this itself; reboot before every run.
