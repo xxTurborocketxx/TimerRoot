@@ -2282,14 +2282,26 @@ class MainActivity : ComponentActivity() {
             val same = imgFp.vendor.equals(devFp.vendor, ignoreCase = true) &&
                 imgFp.incremental == devFp.incremental
             if (!same) {
-                throw ParseAbort(
-                    "The selected boot.img is not the same build as this device.\n\n" +
-                        "Image: ${imgFp.vendor}/${imgFp.device} ... ${imgFp.incremental}\n" +
-                        "Device: ${devFp.vendor}/${devFp.device} ... ${devFp.incremental}\n\n" +
-                        "Pick the boot.img or full package matching the current system."
-                )
+                /* v20: the offsets live in the kernel image, not in the OS
+                 * build.  A different build is only fatal when the kernel
+                 * itself differs; compare kernel banners before refusing. */
+                val imgBanner = scanKernelBanner(ch, size)
+                val kernelSame = imgBanner != null &&
+                    (imgBanner == kernelVersion || kernelVersion.contains(imgBanner))
+                if (!kernelSame) {
+                    throw ParseAbort(
+                        "The selected boot.img is not the same build as this device.\n\n" +
+                            "Image: ${imgFp.vendor}/${imgFp.device} ... ${imgFp.incremental}\n" +
+                            "Device: ${devFp.vendor}/${devFp.device} ... ${devFp.incremental}\n\n" +
+                            "Kernel in the image: ${imgBanner ?: "unreadable"}; this device: $kernelVersion.\n\n" +
+                            "Pick the boot.img or full package matching the current system."
+                    )
+                }
+                note("[parse] build fingerprint mismatch - image: ${imgFp.vendor}/${imgFp.incremental}, device: ${devFp.vendor}/${devFp.incremental}")
+                note("[parse] kernel matches ($imgBanner) - proceeding anyway; a same-build image is still recommended")
+            } else {
+                note("[parse] version check passed (boot fingerprint matches)")
             }
-            note("[parse] version check passed (boot fingerprint matches)")
             return
         }
         val banner = scanKernelBanner(ch, size)
