@@ -4,6 +4,24 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.29
+
+Stable cut of the two beta features from the nightly line (beta-tested as
+v0.28.1).
+
+- **Out-of-scope confirm dialog**: running on a device or kernel that is
+  not known-supported now asks for one explicit confirmation per app
+  session before the core starts ("Out of scope - confirm to run"). "Run
+  anyway" re-enters the preflight, so the busy-load warning still applies;
+  "Not today" cancels the run. The startup device notice stays; the
+  exploit chain, the one-run-per-boot lock and the preflight hard gates
+  are unchanged.
+- **In-app changelog polish**: What's new now shows only the release's
+  What's-new section (about block and commit list removed), refreshes on
+  every tap, renders structured bullets, and heads the dialog with the
+  latest release and its channel.
+- CI: the continuous-build artifact is now named TimerRoot-apk.
+
 ## v0.28
 
 - boot.img check relaxed: on a fingerprint mismatch TimerRoot now compares
