@@ -73,16 +73,40 @@ object Updater {
         )
     }
 
-    /** Trim the release body's markdown down to readable plain text. */
+    /** Only the "What's new" section of the release body: everything after
+     * the "## What's new" heading up to the next "## " heading, so the
+     * About block and GitHub's commit list stay out of the in-app notes.
+     * Bodies without that heading (older releases) fall back to the full
+     * body, cut before the About block when present. */
+    private fun whatsNewSection(body: String): String {
+        val lines = body.lines()
+        val start = lines.indexOfFirst { it.trim() == "## What's new" }
+        if (start < 0) {
+            val about = lines.indexOfFirst { it.trim() == "## About TimerRoot" }
+            return if (about > 0) lines.subList(0, about).joinToString("\n") else body
+        }
+        var end = lines.size
+        for (i in start + 1 until lines.size) {
+            if (lines[i].startsWith("## ")) { end = i; break }
+        }
+        return lines.subList(start + 1, end).joinToString("\n")
+    }
+
+    /** Trim the release body's markdown down to readable plain text: just
+     * the What's-new section, plus the compare link kept as a tappable
+     * last line. */
     private fun plainNotes(body: String): String {
-        val cleaned = body.lines().joinToString("\n") { raw ->
+        val cleaned = whatsNewSection(body).lines().joinToString("\n") { raw ->
             raw.trim()
                 .trimStart { it == '#' }
                 .replace("**", "")
                 .replace("__", "")
                 .replace("`", "")
         }.trim()
-        return if (cleaned.length > 1200) cleaned.take(1200).trimEnd() + "..." else cleaned
+        val link = Regex("\\*\\*Full Changelog\\*\\*:?\\s*(https?://\\S+)")
+            .find(body)?.groupValues?.get(1)
+        val full = if (link != null) cleaned + "\n\nFull changelog: " + link else cleaned
+        return if (full.length > 1200) full.take(1200).trimEnd() + "..." else full
     }
 
     /** Dotted-numeric comparison: 0.26.0 < 0.26.1 < 0.27.0. */

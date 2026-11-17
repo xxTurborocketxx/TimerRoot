@@ -2863,33 +2863,52 @@ class MainActivity : ComponentActivity() {
 
     /* v16d: release notes with tappable links - the GitHub release body
      * carries URLs (the full-changelog compare link) that plain text alone
-     * would leave inert. */
+     * would leave inert.  v27: structured rendering - line by line, so
+     * bullet lists get spacing and a slightly larger font instead of one
+     * wall of 12sp text. */
     @Composable
     private fun NotesText(text: String) {
         val linkColor = COUITheme.colorScheme.primary
-        val annotated = remember(text, linkColor) {
-            buildAnnotatedString {
-                append(text)
-                for (m in Regex("https?://[^ ]+").findAll(text)) {
-                    val url = m.value.trimEnd('.', ')', ',', ';')
-                    addLink(
-                        LinkAnnotation.Url(
-                            url,
-                            TextLinkStyles(
-                                SpanStyle(
-                                    color = linkColor,
-                                    textDecoration = TextDecoration.Underline
+        SelectionContainer {
+            Column {
+                text.lines().forEachIndexed { idx, line ->
+                    if (line.isBlank()) return@forEachIndexed
+                    val annotated = remember(line, linkColor) {
+                        buildAnnotatedString {
+                            append(line)
+                            for (m in Regex("https?://[^ ]+").findAll(line)) {
+                                val url = m.value.trimEnd('.', ')', ',', ';')
+                                addLink(
+                                    LinkAnnotation.Url(
+                                        url,
+                                        TextLinkStyles(
+                                            SpanStyle(
+                                                color = linkColor,
+                                                textDecoration = TextDecoration.Underline
+                                            )
+                                        )
+                                    ),
+                                    m.range.first,
+                                    m.range.first + url.length
                                 )
-                            )
-                        ),
-                        m.range.first,
-                        m.range.first + url.length
+                            }
+                        }
+                    }
+                    if (idx > 0) {
+                        val prevBlank = text.lines().getOrNull(idx - 1).isNullOrBlank()
+                        Spacer(Modifier.height(if (prevBlank) 10.dp else 3.dp))
+                    }
+                    Text(
+                        annotated,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        modifier = if (line.startsWith("- "))
+                            Modifier.padding(start = 10.dp)
+                        else
+                            Modifier
                     )
                 }
             }
-        }
-        SelectionContainer {
-            Text(annotated, fontSize = 12.sp)
         }
     }
 
@@ -2904,6 +2923,15 @@ class MainActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
                 ) {
+                    /* v27: which release these notes belong to. */
+                    if (!latestSeen.isNullOrBlank()) {
+                        Text(
+                            "Latest release: v$latestSeen${channelTag(latestPrerelease)}",
+                            fontSize = 12.sp,
+                            color = COUITheme.colorScheme.onBackground
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
                     NotesText(notes ?: "")
                     Spacer(Modifier.height(16.dp))
                     TextButton(
@@ -2918,13 +2946,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /* v16: show the latest release's notes on demand; the silent startup
-     * check usually already filled latestNotes, so this is instant. */
+     * check usually already filled latestNotes, so this is instant.
+     * v27: the cache shows instantly AND every tap refreshes, so a
+     * just-published release shows up without an app restart. */
     private fun manualChangelogCheck() {
-        val cached = latestNotes
-        if (!cached.isNullOrBlank()) {
-            changelogPrompt = cached
-            return
-        }
+        latestNotes?.takeIf { it.isNotBlank() }?.let { changelogPrompt = it }
         if (updateChecking) return
         updateChecking = true
         lifecycleScope.launch(Dispatchers.IO) {
@@ -2932,11 +2958,13 @@ class MainActivity : ComponentActivity() {
             postUi {
                 updateChecking = false
                 if (upd == null) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Could not load the release notes - offline or rate-limited",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    if (changelogPrompt == null) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Could not load the release notes - offline or rate-limited",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } else {
                     latestSeen = upd.version
                     latestPrerelease = upd.prerelease
