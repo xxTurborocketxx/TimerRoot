@@ -2812,7 +2812,54 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /* v34: with the shell service bound the update installs directly, the
+     * way adb does it: relay the APK into /data/local/tmp (the same relay
+     * that already moves the core binary) and let the shell context drive
+     * the package manager directly - no confirmation dialog, no
+     * unknown-sources detour. Any failure falls back to the system
+     * installer intent. */
     private fun installApk(file: File) {
+        val s = service
+        if (s == null) {
+            installApkViaIntent(file)
+            return
+        }
+        updateProgress = "Installing..."
+        lifecycleScope.launch(Dispatchers.IO) {
+            val out = runCatching {
+                val dst = "$TMP/TimerRoot-update.apk"
+                s.truncate(dst)
+                file.inputStream().use { input ->
+                    val buf = ByteArray(CHUNK)
+                    var off = 0
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n <= 0) break
+                        val chunk = if (n == buf.size) buf else buf.copyOf(n)
+                        s.put(dst, off, chunk)
+                        off += n
+                    }
+                }
+                s.runCmd("pm install -r $dst 2>&1; rm -f $dst")
+            }.getOrNull()
+            postUi {
+                updateProgress = ""
+                if (out != null && out.contains("Success")) {
+                    addLog("[update] direct install ok - the app should restart")
+                } else {
+                    addLog("[update] direct install failed ($out) - falling back")
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Direct install failed - opening the system installer",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    installApkViaIntent(file)
+                }
+            }
+        }
+    }
+
+    private fun installApkViaIntent(file: File) {
         val uri = FileProvider.getUriForFile(this, "$packageName.updatefileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
