@@ -424,9 +424,9 @@ class MainActivity : ComponentActivity() {
         /* v44: greet the user once per boot after a soft reboot; the
          * marker survives the app process being killed by the framework
          * restart, so the note cannot live in doSoftReboot alone. */
-        if (prefs.getInt("soft_reboot_boot", -2) == bootCount() &&
-            prefs.getInt("soft_reboot_logged_boot", -3) != bootCount()) {
-            prefs.edit().putInt("soft_reboot_logged_boot", bootCount()).apply()
+        if (prefs.getLong("soft_reboot_id", 0L) == bootId() &&
+            prefs.getLong("soft_reboot_logged_id", 0L) != bootId()) {
+            prefs.edit().putLong("soft_reboot_logged_id", bootId()).apply()
             addLog("[i] back after a soft reboot - check module status in the manager")
         }
         if (!binderReady && !shizukuHintShown) {
@@ -1766,27 +1766,26 @@ class MainActivity : ComponentActivity() {
     /* One run per boot: every run leaves a zombie behind and consumes the
      * exploit's one-shot state, so a second attempt in the same boot cannot
      * succeed and can panic the kernel (verified the hard way).  Block the
-     * button for the rest of this boot, keyed to Settings.Global.BOOT_COUNT. */
-    private fun bootCount(): Int =
-        runCatching {
-            Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT)
-        }.getOrDefault(-1)
+     * button for the rest of this boot.  v46: the boot identity is the
+     * kernel boot time (wall clock minus elapsedRealtime), not
+     * Settings.Global.BOOT_COUNT - a framework restart re-runs
+     * system_server and bumps BOOT_COUNT while the kernel, the zombie and
+     * the one-shot state never rebooted, so after a soft reboot the app
+     * re-armed the run button inside the same kernel boot. */
+    private fun bootId(): Long =
+        (System.currentTimeMillis() - SystemClock.elapsedRealtime()) / 1000
 
-    private fun runDoneThisBoot(): Boolean {
-        val boot = bootCount()
-        return boot >= 0 && prefs.getInt("run_boot", -1) == boot
-    }
+    private fun runDoneThisBoot(): Boolean =
+        prefs.getLong("run_done_id", 0L) == bootId()
 
     private fun markRunBoot() {
-        val boot = bootCount()
-        if (boot >= 0) prefs.edit().putInt("run_boot", boot).remove("run_ok_boot").apply()
+        prefs.edit().putLong("run_done_id", bootId()).remove("run_ok_id").apply()
         refreshRunDone()
     }
 
     /* v9: persist that this boot's run actually reached root. */
     private fun markRunOk() {
-        val boot = bootCount()
-        if (boot >= 0) prefs.edit().putInt("run_ok_boot", boot).apply()
+        prefs.edit().putLong("run_ok_id", bootId()).apply()
     }
 
     /* v4/v9: push the persisted run flags into Compose state. rootedNow
@@ -1796,10 +1795,8 @@ class MainActivity : ComponentActivity() {
         rootedNow = runSucceededThisBoot()
     }
 
-    private fun runSucceededThisBoot(): Boolean {
-        val boot = bootCount()
-        return boot >= 0 && prefs.getInt("run_ok_boot", -1) == boot
-    }
+    private fun runSucceededThisBoot(): Boolean =
+        prefs.getLong("run_ok_id", 0L) == bootId()
 
     private fun runCore() {
         val s = requireService("run") ?: return
@@ -2727,8 +2724,7 @@ class MainActivity : ComponentActivity() {
     private fun doSoftReboot() {
         val s = requireService("soft reboot") ?: return
         softRebootPrompt = false
-        val boot = bootCount()
-        if (boot >= 0) prefs.edit().putInt("soft_reboot_boot", boot).apply()
+        prefs.edit().putLong("soft_reboot_id", bootId()).apply()
         addLog("[softreboot] restarting the Android framework; root and jailbreak stay up")
         lifecycleScope.launch(Dispatchers.IO) {
             val cmd = "SU=/data/adb/ksu/bin/su; [ -x \"\$SU\" ] || SU=/system/bin/su; " +
