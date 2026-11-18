@@ -4,6 +4,23 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.32
+
+Stable cut of the 0.31 beta line (v0.31.1 - v0.31.3).
+
+- **Manager handoff**: the root payload runs the bundled ksu_handoff.sh
+  and pulls a fresh ksud from the installed manager's own APK, so every
+  KernelSU-family manager reaches "Working - Jailbreak mode" - confirmed
+  out of the box on a second device of the same GKI family.
+- **Rebrand-tolerant parse**: boot images of the same OS build sold under
+  two vendors pass the identity check instead of being refused.
+- **Soft reboot button**: after a successful run the home tab offers a
+  framework restart, so late-loaded modules that only hook newly started
+  processes (Zygisk) take effect without rebooting the phone.
+- **Run state persistence**: the one-run-per-boot guard keys to the
+  kernel boot time and survives framework restarts, and the app recovers
+  the run state on its own after an in-place update.
+
 ## v0.31.3
 
 Beta fix: the run state survives the soft reboot.
