@@ -215,6 +215,9 @@ class MainActivity : ComponentActivity() {
     private var rerunPrompt by mutableStateOf(false)
     /* v44: prompt state for the post-root soft reboot (framework restart). */
     private var softRebootPrompt by mutableStateOf(false)
+    /* v52: Stage 1 Shizuku onboarding - a guided dialog, not an own
+     * adb client (that later stage changes the binding design first). */
+    private var shizukuSetupPrompt by mutableStateOf(false)
     /* v48: one-shot guard for the legacy root-state recovery probe. */
     private var recoveryBusy = false
     /* v4: Compose-visible mirror of the persisted run flag. A
@@ -395,6 +398,7 @@ class MainActivity : ComponentActivity() {
                         ScopePromptDialog()
                         MissPromptDialog()
                         SoftRebootPromptDialog()
+                        ShizukuSetupDialog()
                         RerunPromptDialog()
                         ParseMenuDialog()
                         OtaUrlDialog()
@@ -523,6 +527,19 @@ class MainActivity : ComponentActivity() {
                                 onClick = {
                                     addLog("[shizuku] opening Shizuku - start its server via wireless debugging, then come back")
                                     openManager()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.textButtonColorsPrimary()
+                            )
+                        }
+                    }
+                    item {
+                        if (!binderReady) {
+                            TextButton(
+                                text = "Shizuku setup",
+                                onClick = {
+                                    addLog("[shizuku] setup dialog opened")
+                                    shizukuSetupPrompt = true
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.textButtonColorsPrimary()
@@ -1511,6 +1528,27 @@ class MainActivity : ComponentActivity() {
             runCatching { startActivity(intent) }
         } else {
             Toast.makeText(this, "Shizuku not installed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /* v52: open the developer options for the wireless-debugging pairing
+     * step; vendor builds may hide the screen from other apps. */
+    private fun openDeveloperOptions() {
+        val enabled = Settings.Global.getInt(
+            contentResolver,
+            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+            0
+        ) != 0
+        try {
+            if (enabled) {
+                addLog("[shizuku] opening developer options")
+                startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+            } else {
+                addLog("[shizuku] developer options are disabled - enable them in Settings > About phone, tap Build number 7x, then come back")
+                startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS))
+            }
+        } catch (e: android.content.ActivityNotFoundException) {
+            addLog("[shizuku] developer options are not available on this build")
         }
     }
 
@@ -2713,6 +2751,51 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth(),
                         text = "Restart framework now",
                         onClick = { doSoftReboot() },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
+            }
+        )
+    }
+
+    /* v52: Stage 1 of the Shizuku onboarding - guide only.  The dialog
+     * walks the user through the wireless-debugging start inside the
+     * Shizuku app; this app deliberately runs no adb client of its own
+     * (that later stage would change the binding design first). */
+    @Composable
+    private fun ShizukuSetupDialog() {
+        OverlayDialog(
+            show = shizukuSetupPrompt,
+            title = "Shizuku setup",
+            onDismissRequest = { shizukuSetupPrompt = false },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "Shizuku must be started on this phone after every reboot.\n\n" +
+                            "1. Open Shizuku and tap Start via Wireless debugging.\n\n" +
+                            "2. When asked, pair: Shizuku opens Wireless debugging in the " +
+                            "developer options - tap Pair device with pairing code and " +
+                            "enter the code in Shizuku.\n\n" +
+                            "3. Back here, authorize TimerRoot when Shizuku is running.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Open Shizuku",
+                        onClick = {
+                            addLog("[shizuku] opening Shizuku - start its server via wireless debugging, then come back")
+                            openManager()
+                        },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Developer options",
+                        onClick = { openDeveloperOptions() },
                         colors = ButtonDefaults.textButtonColorsPrimary()
                     )
                 }
