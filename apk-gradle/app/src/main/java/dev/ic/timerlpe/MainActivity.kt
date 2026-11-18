@@ -215,6 +215,8 @@ class MainActivity : ComponentActivity() {
     private var rerunPrompt by mutableStateOf(false)
     /* v44: prompt state for the post-root soft reboot (framework restart). */
     private var softRebootPrompt by mutableStateOf(false)
+    /* v48: one-shot guard for the legacy root-state recovery probe. */
+    private var recoveryBusy = false
     /* v4: Compose-visible mirror of the persisted run flag. A
      * SharedPreferences read is not tracked state, so the status
      * card stayed stale until the app restarted; the mirror is
@@ -306,6 +308,7 @@ class MainActivity : ComponentActivity() {
                 addLog("[service] $id")
                 if (dev.isNotBlank()) addLog("[device] $dev")
                 refreshStaticState()
+                recoverRootState()
             }
         }
 
@@ -421,6 +424,7 @@ class MainActivity : ComponentActivity() {
         if (authorized && !bound) bindUserService()
         refreshStaticState()
         refreshRunDone()
+        if (bound) recoverRootState()
         /* v44: greet the user once per boot after a soft reboot; the
          * marker survives the app process being killed by the framework
          * restart, so the note cannot live in doSoftReboot alone. */
@@ -2721,6 +2725,66 @@ class MainActivity : ComponentActivity() {
      * but the Shizuku user service (own app_process, not a zygote child)
      * survives it and finishes the command anyway - graceful ctl.restart,
      * wait, verify, kill fallback. */
+
+    /* v48: self-heal the run state across an app update.  Versions before
+     * 0.31.3 key the run flags to the system BOOT_COUNT, which the kernel
+     * boot ids cannot map back onto - updating right after a run showed a
+     * fresh boot in the app while the exploit's one-shot state was
+     * already consumed in this kernel boot.  When legacy flags exist but
+     * the new state does not, probe the truth over the shell service:
+     * live root restores this boot's flags, a definitive no restores the
+     * honest fresh state, and an undecidable probe keeps the flags for
+     * the next resume.  Each decision runs at most once. */
+    private fun recoverRootState() {
+        if (recoveryBusy || !bound || runSucceededThisBoot()) return
+        if (!prefs.contains("run_boot") && !prefs.contains("run_ok_boot")) return
+        val s = service ?: return
+        recoveryBusy = true
+        lifecycleScope.launch {
+            val id = withContext(Dispatchers.IO) {
+                runCatching { s.identity() }.getOrNull() ?: ""
+            }
+            val out = if (id.startsWith("uid=2000 ")) withContext(Dispatchers.IO) {
+                runCatching {
+                    s.runCmd("SU=/data/adb/ksu/bin/su; [ -x \"\$SU\" ] || SU=/system/bin/su; " +
+                        "[ -x \"\$SU\" ] || SU=su; \"\$SU\" -c id 2>&1")
+                }.getOrNull() ?: ""
+            } else ""
+            if (out.contains("uid=0")) {
+                prefs.edit()
+                    .putLong("run_done_id", bootId())
+                    .putLong("run_ok_id", bootId())
+                    .remove("run_boot")
+                    .remove("run_ok_boot")
+                    .apply()
+                addLogOnMain("[migrate] live root re-detected - run state restored for this boot")
+            } else if (out.isNotEmpty()) {
+                /* No live root now.  If the legacy attempt happened in
+                 * this same system boot, the kernel one-shot is consumed:
+                 * keep the run blocked for this boot, never re-armed. */
+                val legacy = prefs.getInt("run_boot", -1)
+                val currentBoot = runCatching {
+                    Settings.Global.getInt(contentResolver, Settings.Global.BOOT_COUNT)
+                }.getOrDefault(-1)
+                if (legacy >= 0 && legacy == currentBoot) {
+                    prefs.edit()
+                        .putLong("run_done_id", bootId())
+                        .remove("run_boot")
+                        .remove("run_ok_boot")
+                        .apply()
+                    addLogOnMain("[migrate] no live root, but this boot already saw an attempt - reboot before running again")
+                } else {
+                    prefs.edit().remove("run_boot").remove("run_ok_boot").apply()
+                    addLogOnMain("[migrate] stale legacy flags cleared - starting fresh")
+                }
+            }
+            /* an empty probe stays undecidable: keep the legacy flags and
+             * retry on the next resume */
+            recoveryBusy = false
+            withContext(Dispatchers.Main) { refreshRunDone() }
+        }
+    }
+
     private fun doSoftReboot() {
         val s = requireService("soft reboot") ?: return
         softRebootPrompt = false
