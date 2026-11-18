@@ -213,6 +213,8 @@ class MainActivity : ComponentActivity() {
     private var scopePrompt by mutableStateOf<String?>(null)
     private var missHold = false
     private var rerunPrompt by mutableStateOf(false)
+    /* v44: prompt state for the post-root soft reboot (framework restart). */
+    private var softRebootPrompt by mutableStateOf(false)
     /* v4: Compose-visible mirror of the persisted run flag. A
      * SharedPreferences read is not tracked state, so the status
      * card stayed stale until the app restarted; the mirror is
@@ -389,6 +391,7 @@ class MainActivity : ComponentActivity() {
                         LoadPromptDialog()
                         ScopePromptDialog()
                         MissPromptDialog()
+                        SoftRebootPromptDialog()
                         RerunPromptDialog()
                         ParseMenuDialog()
                         OtaUrlDialog()
@@ -418,6 +421,14 @@ class MainActivity : ComponentActivity() {
         if (authorized && !bound) bindUserService()
         refreshStaticState()
         refreshRunDone()
+        /* v44: greet the user once per boot after a soft reboot; the
+         * marker survives the app process being killed by the framework
+         * restart, so the note cannot live in doSoftReboot alone. */
+        if (prefs.getInt("soft_reboot_boot", -2) == bootCount() &&
+            prefs.getInt("soft_reboot_logged_boot", -3) != bootCount()) {
+            prefs.edit().putInt("soft_reboot_logged_boot", bootCount()).apply()
+            addLog("[i] back after a soft reboot - check module status in the manager")
+        }
         if (!binderReady && !shizukuHintShown) {
             shizukuHintShown = true
             addLog("[i] Shizuku is not running - open it with the button below; the manual and log tabs work without it")
@@ -544,6 +555,19 @@ class MainActivity : ComponentActivity() {
                                 textColor = COUITheme.colorScheme.onErrorContainer
                             ) else ButtonDefaults.textButtonColorsPrimary()
                         )
+                    }
+                    item {
+                        /* v44: modules late-loaded after boot only hook
+                         * processes started afterwards; offer a framework
+                         * restart (soft reboot) once root is live. */
+                        if (rootedNow) {
+                            TextButton(
+                                text = "Soft reboot - apply modules",
+                                onClick = { softRebootPrompt = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.textButtonColorsPrimary()
+                            )
+                        }
                     }
                     item {
                         Card(modifier = Modifier.fillMaxWidth()) {
@@ -2658,6 +2682,71 @@ class MainActivity : ComponentActivity() {
                 }
             }
         )
+    }
+
+    @Composable
+    private fun SoftRebootPromptDialog() {
+        OverlayDialog(
+            show = softRebootPrompt,
+            title = "Soft reboot",
+            onDismissRequest = { softRebootPrompt = false },
+            content = {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 24.dp)
+                ) {
+                    Text(
+                        "Some modules only affect processes that start after " +
+                            "them - Zygisk is the usual example - and ask for a " +
+                            "reboot after installation.\n\n" +
+                            "This restarts the Android framework instead of the " +
+                            "phone: apps close and come back, but root and the " +
+                            "jailbreak stay alive because the kernel keeps " +
+                            "running. A normal reboot would need a new exploit " +
+                            "run - do not power off.\n\n" +
+                            "Things that run only at real boot (post-fs-data " +
+                            "scripts) cannot run in jailbreak mode either way.",
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "Restart framework now",
+                        onClick = { doSoftReboot() },
+                        colors = ButtonDefaults.textButtonColorsPrimary()
+                    )
+                }
+            }
+        )
+    }
+
+    /* v44: run the framework restart.  The sequence lives entirely in one
+     * shell command: this app process dies with the framework restart,
+     * but the Shizuku user service (own app_process, not a zygote child)
+     * survives it and finishes the command anyway - graceful ctl.restart,
+     * wait, verify, kill fallback. */
+    private fun doSoftReboot() {
+        val s = requireService("soft reboot") ?: return
+        softRebootPrompt = false
+        val boot = bootCount()
+        if (boot >= 0) prefs.edit().putInt("soft_reboot_boot", boot).apply()
+        addLog("[softreboot] restarting the Android framework; root and jailbreak stay up")
+        lifecycleScope.launch(Dispatchers.IO) {
+            val cmd = "SU=/data/adb/ksu/bin/su; [ -x \"\$SU\" ] || SU=/system/bin/su; " +
+                "[ -x \"\$SU\" ] || SU=su; \"\$SU\" -c '" +
+                "B=\$(pidof system_server); " +
+                "setprop ctl.restart zygote; " +
+                "sleep 12; " +
+                "C=\$(pidof system_server); " +
+                "if [ -n \"\$B\" ] && [ \"\$B\" = \"\$C\" ]; then " +
+                "kill -9 \$C; echo fallback-kill; " +
+                "else echo zygote-restarted; fi' 2>&1"
+            val out = try {
+                s.runCmd(cmd).trim()
+            } catch (t: Throwable) {
+                "error $t"
+            }
+            addLogOnMain("[softreboot] done ($out)")
+        }
     }
 
     @Composable
