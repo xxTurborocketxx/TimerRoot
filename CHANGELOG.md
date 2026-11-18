@@ -4,6 +4,15 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.31.3
+
+Beta fix: the run state survives the soft reboot.
+
+- **Run state across framework restarts**: the one-run-per-boot guard
+  now keys to the kernel boot time instead of the Android BOOT_COUNT,
+  which a framework restart bumps - after a soft reboot the app no
+  longer offers a second run in the same kernel boot.
+
 ## v0.31.2
 
 Beta addition: a soft reboot button finalizes module setup without losing the jailbreak.
