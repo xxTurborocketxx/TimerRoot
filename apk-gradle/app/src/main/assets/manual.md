@@ -2,7 +2,7 @@
 
 This software is free and open source, by Coolapk @散花神木 (Sanhua Shenmu).
 This fork adds app-side safety and status features (one-run-per-boot lock,
-live jailbreak status).
+live jailbreak status, soft reboot, run-state recovery).
 
 ## Run rules
 
@@ -15,7 +15,11 @@ live jailbreak status).
 - Leftover ic-timer processes after a run **cannot be kill -9'd** — only a
   reboot clears them;
 - Taking over KSU requires the matching manager APK to be installed first
-  (the manager's own kernel module is loaded via late-load).
+  (the manager's own kernel module is loaded via late-load);
+- The run lock is keyed to the kernel boot, not the Android framework:
+  a soft reboot does not re-arm the run button, and after an in-place
+  app update the app recovers the run state on its own when you reopen
+  it.
 
 ## What success looks like
 
@@ -32,6 +36,28 @@ live jailbreak status).
   to open the manager), if notifications are allowed;
 - SELinux is back to **enforcing** after the run (the manager may show a
   stale value until it is restarted).
+
+## Soft reboot - apply modules
+
+With root live, the home tab offers a **Soft reboot - apply modules**
+button. Some modules only affect processes that start after them -
+Zygisk is the usual example - and ask for a reboot after installation.
+The soft reboot restarts the Android framework instead of the whole
+phone: apps close and come back, but root and the jailbreak stay alive
+because the kernel keeps running - do not power off, a normal reboot
+would clear root until the next one-tap run.
+
+- Tap **Restart framework now** in the dialog; the framework takes
+  about half a minute to come back, then unlock the phone and reopen
+  TimerRoot;
+- The run state survives: the main button keeps its "Reboot required"
+  state (one-run-per-boot is keyed to the kernel boot, see Run rules);
+- The manager keeps showing **Working — Jailbreak mode**;
+- Shizuku's shell server does not survive the framework restart - start
+  it again via wireless debugging before further actions; the manual
+  and log tabs work without it;
+- Things that run only at real boot (post-fs-data scripts) cannot run
+  in jailbreak mode either way - those need a real reboot.
 
 ## The log tab
 
@@ -60,6 +86,16 @@ live jailbreak status).
   fails, the system installer opens as before;
 - The downloaded APK is only installed when its signature matches the
   installed app.
+
+## Out of scope devices
+
+On startup TimerRoot compares the device and kernel against its
+supported list (see below). Anything outside gets a **device notice**
+instead of a hard block: the run is held for an explicit out-of-scope
+confirmation before the core starts. Privilege escalation will most
+likely fail on an unknown kernel, and writes to wrong addresses may
+leave the device misbehaving - only confirm if you are porting on
+purpose and accept the risk.
 
 ## Built-in offsets (model + version match)
 
@@ -91,9 +127,11 @@ Tap "Parse offsets" and pick the model's **boot.img** or a **full OTA
 package (.zip)**:
 
 - For a full package, the boot partition is extracted automatically from
-  `payload.bin` (zip64 + zstd decompression), and the device and version
-  inside the package are compared against the current phone first; a
-  mismatch is refused outright;
+  `payload.bin` (zip64 + zstd decompression), and the image identity is
+  compared against the current phone; a mismatch is only fatal when the
+  kernel banner itself differs - rebrands of the same OS build pass, and
+  an image of a different build with the same kernel banner proceeds with
+  a note (a same-build image is still recommended);
 - `init_boot` / `vendor_boot` contain no kernel and are refused;
 - A kernel image that is neither 6.1.145 nor 6.1.157 (Edge 50 Ultra GKI) is also refused;
 - On success, `/data/local/tmp/ic-syms.txt` is generated; afterwards tap
