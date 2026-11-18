@@ -17,8 +17,7 @@ TimerRoot turns the POSIX CPU timer use-after-free (**CVE-2026-98260**)
 into a **one-tap root** for vivo, iQOO and Motorola phones: from the
 Shizuku shell domain to uid 0, optionally handing root over to a
 KernelSU-family manager (late-load of the manager's bundled `ksud` /
-kernel module). Everything runs on the phone — no PC attached, and on
-the Motorola Edge 50 Ultra no bootloader unlock either.
+kernel module). Everything runs on the phone — no PC attached.
 
 The vivo / iQOO models from the upstream tool are still supported; the
 Edge 50 Ultra port adds every device running the same GKI kernel image
