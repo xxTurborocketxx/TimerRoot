@@ -1847,8 +1847,29 @@ class MainActivity : ComponentActivity() {
                     }
                     /* Pre-clean the KSU daemon area before the late-load so the
                      * manager never spawns a stale /data/adb/ksud again (known
-                     * superuser-tab hang after reruns). */
-                    val payload = "rm -f /data/adb/ksud /data/adb/ksu/bin/busybox /data/adb/ksu/bin/bootctl /data/adb/ksu/bin/resetprop 2>/dev/null; cp /data/local/tmp/ksud_next /data/adb/ksud 2>/dev/null; chmod 755 /data/adb/ksud 2>/dev/null; [ -x /data/local/tmp/ksud_next ] || echo ksud_next-missing; /data/local/tmp/ksud_next late-load --kmi android14-6.1 --allow-shell --package-name kqvdie.zeykvw.hpbcyd 2>&1; $proof"
+                     * superuser-tab hang after reruns).  With any manager
+                     * installed, run the pushed handoff script as the root
+                     * payload: it re-extracts a fresh ksud from the manager
+                     * APK and late-loads that manager's own module (empty
+                     * package = try every known manager; arg 4 = 1 leaves
+                     * the manager launch to the core).  The only manager the
+                     * script cannot find by itself is the spoof build, which
+                     * is not in its KNOWN list, so pass that one explicitly.
+                     * Without any manager there is nothing to hand off to:
+                     * proof payload only, skip the script's ksud fallbacks. */
+                    val handoffPkg = when {
+                        ksuPkg.isNotEmpty() -> ksuPkg
+                        managerPresent("kqvdie.zeykvw.hpbcyd", shellPkgs) -> "kqvdie.zeykvw.hpbcyd"
+                        else -> ""
+                    }
+                    val anyManager = ksuPkg.isNotEmpty() ||
+                        KSU_PKGS.any { it.isNotEmpty() && managerPresent(it, shellPkgs) } ||
+                        managerPresent("kqvdie.zeykvw.hpbcyd", shellPkgs)
+                    val payload =
+                        "rm -f /data/adb/ksud /data/adb/ksu/bin/busybox /data/adb/ksu/bin/bootctl /data/adb/ksu/bin/resetprop 2>/dev/null; " +
+                            (if (anyManager)
+                                "sh '$handoff' '$handoffPkg' '' ${if (safe) "1" else "0"} 1 2>&1; "
+                            else "") + proof
 
                     s.truncate(script)
                     push(s, SCHEME_ASSET, script)
@@ -2337,8 +2358,17 @@ class MainActivity : ComponentActivity() {
              * token may legitimately differ by a hardware suffix (the package
              * says PD2339 while the device reports PD2339M); requiring it made
              * a correct image fail. */
-            val same = imgFp.vendor.equals(devFp.vendor, ignoreCase = true) &&
-                imgFp.incremental == devFp.incremental
+            val sameVendor = imgFp.vendor.equals(devFp.vendor, ignoreCase = true)
+            val same = sameVendor && imgFp.incremental == devFp.incremental
+            if (!same && !sameVendor && imgFp.incremental == devFp.incremental) {
+                /* POCO/Redmi/Xiaomi rebrands sell one OS build under two
+                 * vendors (POCO/malachitep vs the boot image's Xiaomi/hal_*),
+                 * so the vendor token differs while the build number is the
+                 * same; the kernel is the same, so proceed. */
+                note("[parse] rebrand detected: same build ${imgFp.incremental} under vendor ${imgFp.vendor}/${devFp.vendor} - proceeding")
+                note("[parse] version check passed (same OS build, rebranded vendor)")
+                return
+            }
             if (!same) {
                 /* v20: the offsets live in the kernel image, not in the OS
                  * build.  A different build is only fatal when the kernel
@@ -3341,7 +3371,7 @@ class MainActivity : ComponentActivity() {
             val line =
                 if (line0.contains("am start failed; handoff incomplete") ||
                     line0.contains("am force-stop failed"))
-                    "[i] manager autostart skipped (spoofed manager; open it yourself - root is live)"
+                    "[i] manager autostart skipped (opening the installed manager instead - root is live)"
                 else line0
             if (line.isNotEmpty()) {
                 logs.add(stampTime(line))
