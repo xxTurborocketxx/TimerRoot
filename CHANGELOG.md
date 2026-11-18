@@ -4,6 +4,23 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.31.1
+
+Beta round: the KernelSU handoff works on every device now, and the
+offset parser accepts rebranded boot images.
+
+- **Manager handoff fixed**: the root payload now runs the bundled
+  ksu_handoff.sh, which extracts a fresh ksud from the installed
+  manager's own APK and late-loads that manager's module - so every
+  installed KernelSU-family manager reaches "Working - Jailbreak mode"
+  instead of stalling at "module never appeared" outside the
+  reference device.
+- **Rebrand-tolerant parse**: a boot image of the same OS build sold
+  under two vendors (POCO/Xiaomi/Redmi rebrands) passes the boot
+  identity check instead of being refused as a wrong build.
+- Clearer manager-autostart log wording when the built-in launch does
+  not cover the installed manager.
+
 ## v0.31
 
 Port round: the same generic kernel image (GKI) now works out of the box
