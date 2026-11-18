@@ -22,8 +22,8 @@ android {
         applicationId = "dev.ic.timerlpe"
         minSdk = 33
         targetSdk = 37
-        versionCode = 231
-        versionName = "0.31.1"
+        versionCode = 232
+        versionName = "0.31.2"
         ndk {
             abiFilters.add("arm64-v8a")
         }

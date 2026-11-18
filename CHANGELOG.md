@@ -4,6 +4,15 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.31.2
+
+Beta addition: a soft reboot button finalizes module setup without losing the jailbreak.
+
+- **Soft reboot button**: after a successful run the home tab offers a
+  framework restart (zygote) so late-loaded modules that only hook
+  newly started processes (Zygisk) take effect - without rebooting the
+  phone, which would drop the jailbreak until the next exploit run.
+
 ## v0.31.1
 
 Beta round: the KernelSU handoff works on every device now, and the
