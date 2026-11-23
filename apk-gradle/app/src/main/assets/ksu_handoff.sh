@@ -330,18 +330,19 @@ fi
 # the PRE_* block: a successful late-load restores SELinux Enforcing while
 # this payload child is still running, so every external tool (grep/ls/
 # tail/dmesg/su) in a fresh verdict would fail with EACCES and print
-# nothing even with the module resident. printf and echo are shell
-# builtins, so this echo-out still works in that broken environment.
+# nothing even with the module resident. echo is the only builtin
+# printer here: printf is NOT an mksh builtin and exec's to EACCES in
+# that state (v56 live lesson), so the echo-out below still works.
 say "modules:"
-[ -n "$PRE_MODULES" ] && printf '%s\n' "$PRE_MODULES"
-[ -n "$PRE_SYSFS" ] && printf '%s\n' "$PRE_SYSFS"
+[ -n "$PRE_MODULES" ] && echo "$PRE_MODULES"
+[ -n "$PRE_SYSFS" ] && echo "$PRE_SYSFS"
 say "su:"
-[ -n "$PRE_SU" ] && printf '%s\n' "$PRE_SU"
+[ -n "$PRE_SU" ] && echo "$PRE_SU"
 say "diag /data/adb/ksu:"
-[ -n "$PRE_DIAG" ] && printf '%s\n' "$PRE_DIAG"
-[ -n "$PRE_LOGS" ] && printf '%s' "$PRE_LOGS"
-[ -n "$PRE_DMESG" ] && printf '%s\n' "$PRE_DMESG"
-[ -n "$PRE_DMESG_TAIL" ] && printf '%s\n' "$PRE_DMESG_TAIL"
+[ -n "$PRE_DIAG" ] && echo "$PRE_DIAG"
+[ -n "$PRE_LOGS" ] && echo "$PRE_LOGS"
+[ -n "$PRE_DMESG" ] && echo "$PRE_DMESG"
+[ -n "$PRE_DMESG_TAIL" ] && echo "$PRE_DMESG_TAIL"
 
 if su_works; then
 	say "handoff OK (${PKG_OK:-${PKG:-default}})"

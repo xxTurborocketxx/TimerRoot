@@ -3377,7 +3377,13 @@ class MainActivity : ComponentActivity() {
         if (line.contains("[core] start")) missHold = false
         if (line.contains("burst hit=0") || line.contains("holding zombie") ||
             line.contains("held a zombie -- exiting (failed attempt; safe to retry)")) missHold = true
-        if (missHold && line.contains("[core] exit=")) {
+        /* v57 (XXXI/57): the hold-class miss parks the zombie and never
+         * reaches "[core] exit=", so the miss UI must fire on the
+         * core's own definitive miss markers. The exit check stays
+         * as the second chance for the "safe to retry" exit case. */
+        if (line.contains("holding zombie") ||
+            line.contains("held a zombie -- exiting (failed attempt; safe to retry)") ||
+            (missHold && line.contains("[core] exit="))) {
             postUi {
                 missPrompt = true
                 runStage = "Miss - reboot before rerun"
