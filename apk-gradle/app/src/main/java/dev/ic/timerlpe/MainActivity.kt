@@ -3375,7 +3375,8 @@ class MainActivity : ComponentActivity() {
      * markers and turn them into button text plus a dialog. */
     private fun trackOutcome(line: String) {
         if (line.contains("[core] start")) missHold = false
-        if (line.contains("burst hit=0") || line.contains("holding zombie")) missHold = true
+        if (line.contains("burst hit=0") || line.contains("holding zombie") ||
+            line.contains("held a zombie -- exiting (failed attempt; safe to retry)")) missHold = true
         if (missHold && line.contains("[core] exit=")) {
             postUi {
                 missPrompt = true

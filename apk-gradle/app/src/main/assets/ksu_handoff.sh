@@ -237,6 +237,31 @@ if [ -z "$CANDS" ]; then
 	CANDS=""
 fi
 
+# Verdict inputs are captured HERE, before any late-load: after a late-load
+# ksud restores SELinux Enforcing while this child (u:r:kernel:s0) is still
+# running, and the tools below would then fail with EACCES. The verdict
+# section at the end only echoes these variables back.
+PRE_MODULES=$(grep -iE '^(kernelsu|ksu|sukisu|suki)' /proc/modules 2>/dev/null | sed 's/^/[ksu]   /')
+PRE_SYSFS=""
+for d in /sys/module/kernelsu /sys/module/ksu; do
+	[ -d "$d" ] && PRE_SYSFS=$(printf '%s[ksu]   sysfs: %s\n' "$PRE_SYSFS" "$d")
+done
+PRE_SU=""
+for s in /data/adb/ksu/bin/su /system/bin/su /system/xbin/su $(command -v su 2>/dev/null); do
+	[ -x "$s" ] || continue
+	PRE_SU="[ksu]   $s -> $(timeout 8 "$s" -c id 2>&1 | head -n 1)"
+	break
+done
+PRE_DIAG=$(ls -l /data/adb/ksu /data/adb/ksu/bin 2>&1 | sed 's/^/[ksu]   /' | head -n 25)
+PRE_LOGS=""
+for f in /data/adb/ksu/log/*; do
+	[ -f "$f" ] || continue
+	t=$(tail -n 10 "$f" 2>/dev/null | sed 's/^/[ksu]   /')
+	PRE_LOGS=$(printf '%s[ksu] log %s:\n%s\n' "$PRE_LOGS" "$f" "$t")
+done
+PRE_DMESG=$(dmesg 2>/dev/null | grep -iE 'module|sig_enforce|signature|kernelsu|reject|denied' | tail -n 20 | sed 's/^/[ksu] dmesg /')
+PRE_DMESG_TAIL=$(dmesg 2>/dev/null | tail -n 10 | sed 's/^/[ksu] dmesg /')
+
 DONE=0
 for p in $CANDS; do
 	[ "$DONE" = "1" ] && break
@@ -301,26 +326,22 @@ if [ "$DONE" != "1" ]; then
 fi
 
 # ---------------------------------------------------------------- verdict
+# The diagnostic data echoed below was collected BEFORE the late-load in
+# the PRE_* block: a successful late-load restores SELinux Enforcing while
+# this payload child is still running, so every external tool (grep/ls/
+# tail/dmesg/su) in a fresh verdict would fail with EACCES and print
+# nothing even with the module resident. printf and echo are shell
+# builtins, so this echo-out still works in that broken environment.
 say "modules:"
-grep -iE '^(kernelsu|ksu|sukisu|suki)' /proc/modules 2>/dev/null | sed 's/^/[ksu]   /'
-for d in /sys/module/kernelsu /sys/module/ksu; do
-	[ -d "$d" ] && say "  sysfs: $d"
-done
+[ -n "$PRE_MODULES" ] && printf '%s\n' "$PRE_MODULES"
+[ -n "$PRE_SYSFS" ] && printf '%s\n' "$PRE_SYSFS"
 say "su:"
-for s in /data/adb/ksu/bin/su /system/bin/su /system/xbin/su $(command -v su 2>/dev/null); do
-	[ -x "$s" ] || continue
-	say "  $s -> $(timeout 8 "$s" -c id 2>&1 | head -n 1)"
-	break
-done
+[ -n "$PRE_SU" ] && printf '%s\n' "$PRE_SU"
 say "diag /data/adb/ksu:"
-ls -l /data/adb/ksu /data/adb/ksu/bin 2>&1 | sed 's/^/[ksu]   /' | head -n 25
-for f in /data/adb/ksu/log/*; do
-	[ -f "$f" ] || continue
-	say "log $f:"
-	tail -n 10 "$f" 2>/dev/null | sed 's/^/[ksu]   /'
-done
-dmesg 2>/dev/null | grep -iE 'module|sig_enforce|signature|kernelsu|reject|denied' | tail -n 20 | sed 's/^/[ksu] dmesg /'
-dmesg 2>/dev/null | tail -n 10 | sed 's/^/[ksu] dmesg /'
+[ -n "$PRE_DIAG" ] && printf '%s\n' "$PRE_DIAG"
+[ -n "$PRE_LOGS" ] && printf '%s' "$PRE_LOGS"
+[ -n "$PRE_DMESG" ] && printf '%s\n' "$PRE_DMESG"
+[ -n "$PRE_DMESG_TAIL" ] && printf '%s\n' "$PRE_DMESG_TAIL"
 
 if su_works; then
 	say "handoff OK (${PKG_OK:-${PKG:-default}})"
@@ -335,6 +356,9 @@ elif ksu_live; then
 	exit 6
 else
 	say "handoff UNCONFIRMED: no live KernelSU found"
-	say "  (if the manager now shows jailbreak mode, the load completed after this check)"
+	say "  (the diagnostic output above was captured before the late-load;"
+	say "   probes running now can come back empty under SELinux Enforcing"
+	say "   even with the module resident. The manager's jailbreak-mode state"
+	say "   and the core's own module poll are the authoritative result)"
 	exit 7
 fi
