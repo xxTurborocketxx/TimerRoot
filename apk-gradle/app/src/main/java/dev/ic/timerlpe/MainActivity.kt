@@ -1929,10 +1929,16 @@ class MainActivity : ComponentActivity() {
                         KSU_PKGS.any { it.isNotEmpty() && managerPresent(it, shellPkgs) } ||
                         managerPresent("kqvdie.zeykvw.hpbcyd", shellPkgs)
                     val payload =
-                        "rm -f /data/adb/ksud /data/adb/ksu/bin/busybox /data/adb/ksu/bin/bootctl /data/adb/ksu/bin/resetprop 2>/dev/null; " +
+                        "rm -f /data/adb/ksud /data/adb/ksu/bin/busybox /data/adb/ksu/bin/bootctl /data/adb/ksu/bin/resetprop /data/local/tmp/proof.log 2>/dev/null; " +
+                            /* ksud's late-load daemon can cut the child's
+                             * stdout, shrinking the app log exactly when
+                             * the handoff runs; tee the payload so the app
+                             * can read the tail back from the file. */
+                            "( " +
                             (if (anyManager)
                                 "sh '$handoff' '$handoffPkg' '' ${if (safe) "1" else "0"} 1 2>&1; "
-                            else "") + proof
+                            else "") + proof +
+                            " ) 2>&1 | tee /data/local/tmp/proof.log"
 
                     s.truncate(script)
                     push(s, SCHEME_ASSET, script)
@@ -3589,6 +3595,29 @@ class MainActivity : ComponentActivity() {
         addLogOnMain(s)
     }
 
+    /**
+     * Recovery layer for the ksu payload: the payload tees its whole output
+     * into a file in /data/local/tmp because the ksud daemon started by the
+     * late-load can cut the child's stdout, and everything printed after
+     * the late-load then vanishes from the live log (script tail, verdict,
+     * proof).  Reading the file back after the run keeps support-quality
+     * logs and compares the file against the app view.
+     */
+    private fun recoverProofLog() {
+        val s = requireService("proof recovery") ?: return
+        lifecycleScope.launch {
+            val tail = withContext(Dispatchers.IO) {
+                runCatching { s.runCmd("cat /data/local/tmp/proof.log 2>/dev/null") }
+                    .getOrNull() ?: ""
+            }
+            if (tail.isNotBlank()) {
+                addLogOnMain(
+                    "[proof-recovered] ksu payload output from the recovery file " +
+                        "(below can duplicate the live log):\n" + tail.trim())
+            }
+        }
+    }
+
     private fun addLogOnMain(s: String) {
         runOnUiThread { raw(s + "\n") }
     }
@@ -3637,6 +3666,7 @@ class MainActivity : ComponentActivity() {
                 openKsuManager()
             }
             if (rootConfirmed) notifyRootLive()
+            if (rootConfirmed) recoverProofLog()
             addLog(
                 "======== run end after ${
                     (SystemClock.elapsedRealtime() - runStartMs) / 1000}s: " +
