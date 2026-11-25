@@ -4,6 +4,24 @@ Release bodies are generated from this file: the "What's new" section of a
 tagged release is the section below its version heading, published verbatim
 by the release workflow. Newest first.
 
+## v0.33
+
+Bundles the run-UX and diagnosis rounds since v0.32.
+
+- **Guided Shizuku setup**: a first-run dialog explains the Shizuku
+  shell service and takes the user straight to it, so the app no
+  longer fails silently when it is not running.
+- **Run log recovery**: the ksu payload output is teed to a recovery
+  file and read back after the run, so the log tab keeps the full
+  handoff output even across a zygote restart.
+- **Clear miss handling**: a timing miss (held zombie) shows a
+  "Miss - reboot before rerun" dialog the moment the core reports
+  it, instead of hanging on "Jailbreak attempt running...".
+- **Readable handoff verdict**: the KernelSU handoff collects its
+  diagnostics before the late-load and echoes them afterwards, so
+  the verdict stays readable even after a successful late-load
+  restores SELinux Enforcing around the running payload.
+
 ## v0.32
 
 Stable cut of the 0.31 beta line (v0.31.1 - v0.31.3).
